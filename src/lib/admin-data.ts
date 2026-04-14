@@ -85,9 +85,36 @@ export interface UserActionLog {
   userId: number;
   uid: string;
   nickname: string;
+  category: string;
   action: string;
   detail: string;
   ip: string;
+  device: string;
+  createdAt: string;
+}
+
+export interface BattleLog {
+  id: number;
+  battleId: string;
+  userId: number;
+  uid: string;
+  nickname: string;
+  battleType: string;
+  stageId: number;
+  difficulty: number;
+  attackerPower: number;
+  defenderId: number;
+  defenderName: string;
+  defenderPower: number;
+  result: number; // 0失败 1胜利 2平局
+  starRating: number;
+  turns: number;
+  duration: number;
+  heroUsed: string;
+  damageTotal: number;
+  damageTaken: number;
+  healTotal: number;
+  skillCasts: number;
   createdAt: string;
 }
 
@@ -586,6 +613,81 @@ export const mockLoginLogs: LoginLog[] = Array.from({ length: 50 }, (_, i) => ({
   status: i % 20 === 0 ? 0 : 1,
   createdAt: `2025-07-10 ${String(8 + (i % 14)).padStart(2, '0')}:${String(i * 2 % 60).padStart(2, '0')}:${String(i * 7 % 60).padStart(2, '0')}`,
 }));
+
+// 战斗日志
+export const mockBattleLogs: BattleLog[] = Array.from({ length: 60 }, (_, i) => {
+  const battleTypes = ['pve', 'pvp', 'arena', 'siege', 'world_boss'];
+  const battleType = battleTypes[i % 5];
+  const heroNames = ['吕布', '诸葛亮', '赵云', '关羽', '张飞', '曹操', '周瑜', '司马懿', '孙权', '刘备'];
+  const heroes = heroNames.slice(0, 3 + (i % 3)).join(',');
+  const isWin = Math.random() > 0.4;
+  const result = isWin ? 1 : Math.random() > 0.5 ? 0 : 2;
+  const stars = result === 1 ? Math.floor(Math.random() * 3) + 1 : 0;
+  return {
+    id: 20001 + i,
+    battleId: `BTL${Date.now() - i * 60000}${String(i).padStart(4, '0')}`,
+    userId: 10001 + (i % 50),
+    uid: `UID${10001 + (i % 50)}`,
+    nickname: mockGameUsers[i % 50]?.nickname || '玩家',
+    battleType,
+    stageId: battleType === 'pve' ? (i % 30) + 1 : 0,
+    difficulty: Math.min(5, Math.floor(i / 12) + 1),
+    attackerPower: Math.floor(Math.random() * 300000) + 100000,
+    defenderId: battleType === 'pvp' ? 10001 + ((i + 7) % 50) : 0,
+    defenderName: battleType === 'pvp' ? (mockGameUsers[(i + 7) % 50]?.nickname || '对手') : '',
+    defenderPower: battleType === 'pvp' ? Math.floor(Math.random() * 300000) + 100000 : 0,
+    result,
+    starRating: stars,
+    turns: Math.floor(Math.random() * 12) + 3,
+    duration: Math.floor(Math.random() * 180) + 10,
+    heroUsed: heroes,
+    damageTotal: Math.floor(Math.random() * 50000) + 5000,
+    damageTaken: Math.floor(Math.random() * 30000) + 2000,
+    healTotal: Math.floor(Math.random() * 10000),
+    skillCasts: Math.floor(Math.random() * 15) + 1,
+    createdAt: `2025-07-${String(10 - Math.floor(i / 15)).padStart(2, '0')} ${String(8 + (i % 16)).padStart(2, '0')}:${String(i * 4 % 60).padStart(2, '0')}:00`,
+  };
+});
+
+// 用户行为日志 (增强版)
+export const mockUserActionLogs: UserActionLog[] = Array.from({ length: 60 }, (_, i) => {
+  const categories = ['battle', 'gacha', 'trade', 'social', 'system', 'guild', 'map'];
+  const actions: Record<string, string[]> = {
+    battle: ['pve_battle', 'pvp_battle', 'arena_battle', 'siege_battle'],
+    gacha: ['gacha_single', 'gacha_ten', 'pity_trigger'],
+    trade: ['purchase', 'consume', 'gift'],
+    social: ['chat', 'friend_add', 'mail_send'],
+    system: ['login', 'logout', 'register', 'settings'],
+    guild: ['guild_join', 'guild_donate', 'guild_war'],
+    map: ['march_start', 'city_attack', 'collect_resource'],
+  };
+  const category = categories[i % 7];
+  const action = actions[category][i % actions[category].length];
+  const details: Record<string, string[]> = {
+    pve_battle: ['关卡3-5 胜利, 获得经验+500, 金币+200', '关卡5-2 失败, 武将阵亡', '竞技场匹配 对手:诸葛亮战队'],
+    pvp_battle: ['竞技场排名战, 对手:吕布战队, 胜利', '攻城战 攻击洛阳城, 失败'],
+    gacha_single: ['常驻池单抽, 获得SR张飞', '限定池单抽, 未中'],
+    gacha_ten: ['十连抽, 获得SSR诸葛亮+2个SR', '新手池十连, 必出SR关羽'],
+    purchase: ['购买30元充值包, 获得330钻石', '购买月卡, 获得300钻石'],
+    consume: ['升级武将赵云, 消耗金币5000', '强化装备, 消耗铁矿100'],
+    login: ['登录游戏, IP:192.168.1.100', '自动登录'],
+    guild_join: ['加入联盟:龙腾天下'],
+    march_start: ['行军出发 → 洛阳, 兵力2000'],
+  };
+  const detail = details[action]?.[i % (details[action]?.length || 1)] || `${action} 操作`;
+  return {
+    id: 30001 + i,
+    userId: 10001 + (i % 50),
+    uid: `UID${10001 + (i % 50)}`,
+    nickname: mockGameUsers[i % 50]?.nickname || '玩家',
+    category,
+    action,
+    detail,
+    ip: `10.0.${Math.floor(i / 10)}.${100 + (i % 256)}`,
+    device: ['iPhone 15', 'iPhone 14', 'Samsung S24', 'Huawei Mate60', 'iPad Air'][i % 5],
+    createdAt: `2025-07-10 ${String(8 + (i % 14)).padStart(2, '0')}:${String(i * 3 % 60).padStart(2, '0')}:${String(i * 7 % 60).padStart(2, '0')}`,
+  };
+});
 
 // 配置项
 export const mockConfigs: ConfigItem[] = [

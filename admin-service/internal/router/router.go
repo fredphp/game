@@ -70,10 +70,23 @@ func Register(r *gin.Engine, cfg *config.Config) {
 		auth.GET("/analytics/gacha", handler.GetGachaStats)
 		auth.GET("/analytics/retention", handler.GetRetentionStats)
 
-		// 日志查看 (查询log_db分表)
+		// ---- 日志系统 (查询log_db分表) ----
+		// GM操作日志
 		auth.GET("/logs/gm", handler.GetGmLogs)
-		auth.GET("/logs/login", handler.GetLoginLogs)
+		auth.GET("/logs/gm/stats", handler.GetGmLogStats)
+
+		// 用户行为日志
 		auth.GET("/logs/action", handler.GetActionLogs)
+		auth.GET("/logs/action/stats", handler.GetActionStats)
+
+		// 战斗日志
+		auth.GET("/logs/battle", handler.GetBattleLogs)
+		auth.GET("/logs/battle/stats", handler.GetBattleStats)
+		auth.GET("/logs/battle/heroes", handler.GetBattleHeroStats)
+		auth.GET("/logs/battle/:battleId", handler.GetBattleLogDetail)
+
+		// 登录日志
+		auth.GET("/logs/login", handler.GetLoginLogs)
 
 		// 配置中心 (admin_db)
 		auth.GET("/configs", handler.GetConfigs)
