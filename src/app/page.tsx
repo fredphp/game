@@ -14,6 +14,7 @@ import LogsPage from '@/components/admin/logs-page'
 import ConfigPage from '@/components/admin/config-page'
 import ActivitiesPage from '@/components/admin/activities-page'
 import RolesPage from '@/components/admin/roles-page'
+import EconomyPage from '@/components/admin/economy-page'
 
 const pageComponents: Record<string, React.ComponentType> = {
   'dashboard': DashboardPage,
@@ -28,6 +29,7 @@ const pageComponents: Record<string, React.ComponentType> = {
   'config': ConfigPage,
   'activities': ActivitiesPage,
   'roles': RolesPage,
+  'economy': EconomyPage,
 }
 
 export default function Home() {

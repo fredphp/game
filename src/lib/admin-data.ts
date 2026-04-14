@@ -732,4 +732,5 @@ export const menuItems = [
   { id: 'config', name: '配置中心', icon: 'Settings' },
   { id: 'activities', name: '活动系统', icon: 'PartyPopper' },
   { id: 'roles', name: '角色权限', icon: 'Lock' },
+  { id: 'economy', name: '经济系统', icon: 'ArrowDownUp' },
 ];
