@@ -358,3 +358,32 @@ Stage Summary:
 - Sharding: orders by month (orders_YYYY_MM), GM logs by month, user actions by month, login logs by day
 - GM Audit: all critical operations (ban, resource modify, map reset, guild disband, refund, config change) logged to gm_operation_log
 - Gateway: HTTP proxy to user/card/map/guild/payment microservices with graceful fallback
+
+---
+Task ID: analytics-page-enhanced
+Agent: main
+Task: Build comprehensive enhanced analytics page for 九州争鼎 admin dashboard
+
+Work Log:
+- Replaced existing mock-data analytics page with full API-backed implementation
+- Section 1 - Overview KPI Cards: 4 cards (DAU+MAU, Revenue+ARPU, New Users+PayRate, Online+Live indicator) with gradient backgrounds, colored left borders, framer-motion fade-in-up animations, change% badges (green up/red down)
+- Section 2 - Tabbed Charts Area using shadcn Tabs with 4 tabs:
+  - Tab 1 (DAU/MAU趋势): ComposedChart with dual Area fills (DAU amber gradient, MAU orange gradient), new users bar overlay (emerald), dual Y-axes, quick stats row (avg DAU, avg MAU, DAU/MAU ratio, cumulative new users). Fetch from /api/stats/dau-mau?days=30
+  - Tab 2 (留存率分析): LineChart with 3 lines (1日 rose, 7日 amber, 30日 orange), average retention badges in header, cohort table with 7 columns and color-coded retention percentages (green≥50%/30%/25%, amber≥30%/15%/8%, rose below). Fetch from /api/stats/retention?days=30
+  - Tab 3 (抽卡统计): ComposedChart with violet gradient bars (total draws) + amber line (SSR rate), dual Y-axes, rarity distribution donut PieChart (SSR amber, SR violet, R gray) with pity stats (avg pity, hard pity count, samples), summary cards row (total draws, SSR, SR, R counts), hero ranking TOP 10 table with gold/silver/bronze rank badges. Fetch from /api/stats/gacha?days=14
+  - Tab 4 (收入统计): AreaChart with emerald gradient (daily revenue), revenue breakdown donut PieChart (diamond amber, monthly emerald, gift violet, VIP rose), summary cards (total revenue, daily avg, avg order, ARPU), additional stats row (total orders, avg pay rate, revenue sources), top spenders TOP 10 table with user details. Fetch from /api/stats/revenue?days=30
+- Features: auto-refresh toggle (30s interval), manual refresh button with spinner animation, "from cache" amber Database badges per tab, skeleton loading states matching final layout shapes, empty data placeholder messages
+- Data fetching: useCallback-based doFetchAll with Promise.all for parallel API calls, useRef for interval-accessible callback, useEffect for mount fetch and auto-refresh timer
+- Responsive: sm:grid-cols-2 lg:grid-cols-4 for KPI cards, lg:grid-cols-3 for chart+pie layouts, stacked on mobile, custom scrollbar styling (analytics-scroll class)
+- Color scheme: amber (DAU/users), emerald (revenue), violet (gacha), rose (retention) — no indigo or blue
+- Chart heights: 300px main charts, 200px pie charts
+- Table max heights: max-h-96 with overflow-y-auto and sticky headers
+
+Stage Summary:
+- 1 file rewritten: `src/components/admin/analytics-page.tsx` (~870 lines)
+- Fetches data from 5 real API endpoints: /api/stats/overview, /api/stats/dau-mau, /api/stats/retention, /api/stats/gacha, /api/stats/revenue
+- All API responses use unified {code, message, data, fromCache} wrapper
+- 4 tab views with rich visualizations (ComposedChart, AreaChart, LineChart, PieChart)
+- 6 data tables: cohort retention, hero ranking, top spenders + supporting stat grids
+- ESLint passes with zero errors, dev server compiles successfully
+- Fully responsive with mobile-first design, framer-motion entrance animations

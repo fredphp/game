@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,6 +7,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ==================== 管理后台用户 (保留) ====================
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -21,12 +16,102 @@ model User {
   updatedAt DateTime @updatedAt
 }
 
-model Post {
-  id        String   @id @default(cuid())
-  title     String
-  content   String?
-  published Boolean  @default(false)
-  authorId  String
+// ==================== 游戏数据统计系统 ====================
+
+/// 每日聚合统计表
+model DailyStats {
+  id          Int      @id @default(autoincrement())
+  date        String   @unique                   // YYYY-MM-DD
+  dau         Int      @default(0)               // 日活跃用户数
+  mau         Int      @default(0)               // 月活跃用户数
+  newUsers    Int      @default(0)               // 新增注册用户
+  revenue     Float    @default(0)               // 当日收入(元)
+  orders      Int      @default(0)               // 订单数
+  payRate     Float    @default(0)               // 付费率(%)
+  arpu        Float    @default(0)               // ARPU(元)
+  retention1  Float    @default(0)               // 1日留存率(%)
+  retention7  Float    @default(0)               // 7日留存率(%)
+  retention30 Float    @default(0)               // 30日留存率(%)
+  draws       Int      @default(0)               // 抽卡总次数
+  battles     Int      @default(0)               // 战斗总次数
+  avgOnline   Int      @default(0)               // 平均在线时长(分钟)
+  peakOnline  Int      @default(0)               // 峰值在线人数
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+/// 抽卡记录表 (抽样记录)
+model GachaRecord {
+  id         Int      @id @default(autoincrement())
+  userId     Int                               // 用户ID
+  poolId     Int                               // 卡池ID
+  poolName   String   @default("")              // 卡池名称
+  heroId     Int      @default(0)               // 抽到武将ID
+  heroName   String   @default("")              // 抽到武将名称
+  rarity     String   @default("")              // 品质: SSR/SR/R
+  drawType   String   @default("single")        // 抽卡类型: single/ten
+  pityCount  Int      @default(0)               // 当前保底计数
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([poolId])
+  @@index([rarity])
+  @@index([createdAt])
+}
+
+/// 收入记录表
+model RevenueRecord {
+  id           Int      @id @default(autoincrement())
+  orderNo      String   @unique                 // 订单号
+  userId       Int                               // 用户ID
+  nickname     String   @default("")              // 用户昵称
+  productType  String   @default("")              // 商品类型: diamond/monthly/gift/vip
+  productName  String   @default("")              // 商品名称
+  amount       Float                              // 金额(元)
+  diamond      Int      @default(0)               // 获得钻石
+  payMethod    String   @default("")              // 支付方式
+  status       Int      @default(0)               // 状态: 0待支付 1已支付 2已发货 3已退款
+  paidAt       DateTime?                          // 支付时间
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+  @@index([productType])
+  @@index([status])
+  @@index([createdAt])
+}
+
+/// 用户活跃日志 (用于计算DAU/MAU)
+model UserActiveLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int                                // 用户ID
+  action    String   @default("login")          // 活跃动作: login/battle/gacha/trade
+  duration  Int      @default(0)                // 在线时长(秒)
+  ip        String   @default("")
+  device    String   @default("")
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+/// 留存率记录表 (cohort)
+model RetentionRecord {
+  id           Int      @id @default(autoincrement())
+  cohortDate   String                              // 注册批次日期 YYYY-MM-DD
+  cohortSize   Int      @default(0)                 // 该批次注册人数
+  day1         Int      @default(0)                 // 次日回访人数
+  day3         Int      @default(0)                 // 3日回访人数
+  day7         Int      @default(0)                 // 7日回访人数
+  day14        Int      @default(0)                 // 14日回访人数
+  day30        Int      @default(0)                 // 30日回访人数
+  retention1   Float    @default(0)                 // 1日留存率(%)
+  retention3   Float    @default(0)                 // 3日留存率(%)
+  retention7   Float    @default(0)                 // 7日留存率(%)
+  retention14  Float    @default(0)                 // 14日留存率(%)
+  retention30  Float    @default(0)                 // 30日留存率(%)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([cohortDate])
 }
