@@ -1,0 +1,130 @@
+{
+  "normal": {
+    "id": 1,
+    "name": "普通攻击",
+    "type": "normal",
+    "target_type": "single",
+    "damage_type": "physical",
+    "damage_ratio": 1.0,
+    "base_damage": 0,
+    "cd": 0,
+    "special": "",
+    "heal_ratio": 0,
+    "buffs": [],
+    "description": "对单体敌人造成100%攻击力的物理伤害"
+  },
+  "skills": [
+    {
+      "id": 1001,
+      "name": "青龙偃月刀",
+      "type": "active",
+      "target_type": "enemy_all",
+      "damage_type": "physical",
+      "damage_ratio": 1.8,
+      "base_damage": 200,
+      "cd": 4,
+      "special": "",
+      "heal_ratio": 0,
+      "buffs": [
+        { "type": "def_down", "value": 0.15, "duration": 2, "is_debuff": true }
+      ],
+      "description": "关羽挥舞青龙偃月刀，对所有敌人造成180%物理伤害，并降低防御15%持续2回合"
+    },
+    {
+      "id": 1002,
+      "name": "龙胆枪法",
+      "type": "active",
+      "target_type": "single",
+      "damage_type": "physical",
+      "damage_ratio": 3.5,
+      "base_damage": 500,
+      "cd": 5,
+      "special": "",
+      "heal_ratio": 0,
+      "buffs": [
+        { "type": "atk_up", "value": 0.2, "duration": 3, "is_debuff": false }
+      ],
+      "description": "赵云对单体敌人造成350%物理伤害，自身攻击力提升20%持续3回合"
+    },
+    {
+      "id": 1003,
+      "name": "火烧连营",
+      "type": "active",
+      "target_type": "enemy_all",
+      "damage_type": "magical",
+      "damage_ratio": 2.0,
+      "base_damage": 300,
+      "cd": 5,
+      "special": "",
+      "heal_ratio": 0,
+      "buffs": [
+        { "type": "dot", "value": 0.05, "duration": 3, "is_debuff": true }
+      ],
+      "description": "陆逊对全体敌人造成200%法术伤害，并附加灼烧效果每回合5%最大生命值持续3回合"
+    },
+    {
+      "id": 1004,
+      "name": "倾国倾城",
+      "type": "active",
+      "target_type": "enemy_back",
+      "damage_type": "magical",
+      "damage_ratio": 2.5,
+      "base_damage": 150,
+      "cd": 4,
+      "special": "",
+      "heal_ratio": 0,
+      "buffs": [
+        { "type": "spd_down", "value": 0.2, "duration": 2, "is_debuff": true }
+      ],
+      "description": "貂蝉对敌方后排造成250%法术伤害，降低速度20%持续2回合"
+    },
+    {
+      "id": 1005,
+      "name": "妙手回春",
+      "type": "active",
+      "target_type": "ally_lowest_hp",
+      "damage_type": "magical",
+      "damage_ratio": 0,
+      "base_damage": 0,
+      "cd": 3,
+      "special": "heal",
+      "heal_ratio": 2.5,
+      "buffs": [
+        { "type": "hot", "value": 0.03, "duration": 3, "is_debuff": false }
+      ],
+      "description": "华佗治疗血量最低的队友，恢复250%攻击力生命值，并附加持续3回合3%最大生命值恢复"
+    },
+    {
+      "id": 1006,
+      "name": "天下无双",
+      "type": "active",
+      "target_type": "single",
+      "damage_type": "physical",
+      "damage_ratio": 5.0,
+      "base_damage": 800,
+      "cd": 6,
+      "special": "",
+      "heal_ratio": 0,
+      "buffs": [
+        { "type": "atk_up", "value": 0.3, "duration": 2, "is_debuff": false }
+      ],
+      "description": "吕布对单体敌人造成500%物理伤害，自身攻击力提升30%持续2回合"
+    },
+    {
+      "id": 1007,
+      "name": "铁壁防御",
+      "type": "active",
+      "target_type": "self",
+      "damage_type": "physical",
+      "damage_ratio": 0,
+      "base_damage": 0,
+      "cd": 4,
+      "special": "shield",
+      "heal_ratio": 0,
+      "buffs": [
+        { "type": "def_up", "value": 0.4, "duration": 2, "is_debuff": false }
+      ],
+      "description": "自身防御力提升40%持续2回合"
+    }
+  ]
+}
