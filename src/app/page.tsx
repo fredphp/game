@@ -1,48 +1,43 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
+import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import {
-  Route,
-  User,
-  Swords,
-  Layers,
-  Shield,
-  MessageCircle,
-  Trophy,
-  Mail,
-  Calendar,
-  CreditCard,
-  Settings,
+  Copy,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  FolderOpen,
+  FileCode,
   Database,
   Server,
-  Globe,
-  ArrowRight,
-  ChevronDown,
+  Shield,
+  Key,
+  Clock,
   Zap,
+  Globe,
   Lock,
-  Wifi,
-  Activity,
-  Container,
-  HardDrive,
-  Search,
-  ArrowDown,
-  ShieldCheck,
+  UserPlus,
+  LogIn,
+  LogOut,
+  UserCog,
   RefreshCw,
   Eye,
-  RotateCcw,
+  Edit,
+  Activity,
+  ArrowRight,
+  Layers,
+  HardDrive,
   type LucideIcon,
 } from 'lucide-react'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Tooltip,
   TooltipContent,
@@ -54,640 +49,828 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import { Separator } from '@/components/ui/separator'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import DirectoryTree from '@/components/directory-tree'
-import {
-  goBackendTree,
-  unityClientTree,
-  backendModules,
-  gatewayDesign,
-  dockerServices,
-  databaseTables,
-  type ModuleInfo,
-  type DockerService,
-} from '@/lib/project-data'
 
-const iconMap: Record<string, LucideIcon> = {
-  Route, User, Swords, Layers, Shield, MessageCircle, Trophy,
-  Mail, Calendar, CreditCard, Settings,
+// ==================== Source Code Map ====================
+const sourceFiles: { name: string; path: string; lang: string; icon: LucideIcon; desc: string }[] = [
+  { name: 'main.go', path: 'cmd/main.go', lang: 'go', icon: Server, desc: '服务启动入口 — 加载配置、初始化依赖、注册路由' },
+  { name: 'user_handler.go', path: 'internal/handler/user_handler.go', lang: 'go', icon: Globe, desc: 'HTTP 请求处理器 — 注册/登录/Profile/密码/登出' },
+  { name: 'user_service.go', path: 'internal/service/user_service.go', lang: 'go', icon: Zap, desc: '业务逻辑层 — 核心业务规则、Redis 缓存、黑名单' },
+  { name: 'user_dao.go', path: 'internal/dao/user_dao.go', lang: 'go', icon: Database, desc: '数据访问层 — MySQL CRUD 操作' },
+  { name: 'user_model.go', path: 'internal/model/user_model.go', lang: 'go', icon: Layers, desc: '数据模型 — User/Request/Response 结构体' },
+  { name: 'auth.go', path: 'internal/middleware/auth.go', lang: 'go', icon: Shield, desc: '中间件 — JWT 鉴权、CORS 跨域' },
+  { name: 'router.go', path: 'internal/router/router.go', lang: 'go', icon: Activity, desc: '路由注册 — 公开接口 + 鉴权接口' },
+  { name: 'jwt.go', path: 'pkg/jwt/jwt.go', lang: 'go', icon: Key, desc: 'JWT 工具包 — 生成/解析/刷新 Token' },
+  { name: 'response.go', path: 'pkg/response/response.go', lang: 'go', icon: Layers, desc: '统一响应 — 错误码、响应结构' },
+  { name: 'mysql.go', path: 'pkg/mysql/mysql.go', lang: 'go', icon: Database, desc: 'MySQL 连接池初始化' },
+  { name: 'redis.go', path: 'pkg/redis/redis.go', lang: 'go', icon: HardDrive, desc: 'Redis 连接池初始化' },
+  { name: 'config.yaml', path: 'config/config.yaml', lang: 'yaml', icon: FileCode, desc: '服务配置 — MySQL/Redis/JWT/缓存TTL' },
+  { name: 'schema.sql', path: 'docs/schema.sql', lang: 'sql', icon: Database, desc: 'MySQL 建表语句' },
+  { name: 'go.mod', path: 'go.mod', lang: 'go', icon: FileCode, desc: 'Go 模块依赖声明' },
+]
+
+// ==================== API Endpoints ====================
+interface ApiEndpoint {
+  method: string
+  path: string
+  auth: boolean
+  desc: string
+  handler: string
+  icon: LucideIcon
+  color: string
+  reqBody?: string
+  resBody?: string
 }
 
-// ==================== Hero Section ====================
-function HeroSection() {
-  return (
-    <motion.section
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6 }}
-      className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-card via-card to-card/80 p-8 md:p-12 lg:p-16"
-    >
-      {/* Decorative elements */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-transparent blur-3xl" />
-        <div className="absolute -bottom-24 -left-24 w-96 h-96 rounded-full bg-gradient-to-tr from-red-500/10 via-rose-500/5 to-transparent blur-3xl" />
-        {/* Pattern overlay */}
-        <div className="absolute inset-0 opacity-[0.03]" style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-        }} />
-      </div>
+const apiEndpoints: ApiEndpoint[] = [
+  {
+    method: 'POST',
+    path: '/api/v1/user/register',
+    auth: false,
+    desc: '用户注册，创建新账号',
+    handler: 'UserHandler.Register',
+    icon: UserPlus,
+    color: 'bg-emerald-500',
+    reqBody: `{
+  "username": "zhangsan",
+  "password": "123456",
+  "nickname": "张三",
+  "phone": "+8613800138000",
+  "email": "zhangsan@example.com"
+}`,
+    resBody: `{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "user_id": 10001,
+    "username": "zhangsan"
+  }
+}`,
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/user/login',
+    auth: false,
+    desc: '用户名+密码登录，返回JWT',
+    handler: 'UserHandler.Login',
+    icon: LogIn,
+    color: 'bg-blue-500',
+    reqBody: `{
+  "username": "zhangsan",
+  "password": "123456"
+}`,
+    resBody: `{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "user_id": 10001,
+    "username": "zhangsan",
+    "nickname": "张三",
+    "avatar": "",
+    "vip_level": 0,
+    "access_token": "eyJhbGciOiJI...",
+    "refresh_token": "eyJhbGciOiJI...",
+    "expires_in": 7200
+  }
+}`,
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/user/profile',
+    auth: true,
+    desc: '获取当前登录用户详细信息',
+    handler: 'UserHandler.GetProfile',
+    icon: Eye,
+    color: 'bg-amber-500',
+    resBody: `{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "id": 10001,
+    "username": "zhangsan",
+    "nickname": "张三",
+    "avatar": "https://...",
+    "vip_level": 3,
+    "vip_expire_time": "2025-12-31T00:00:00Z",
+    "gold": 10000,
+    "diamond": 500,
+    "level": 25,
+    "experience": 15000,
+    "status": 1,
+    "created_at": "2024-01-01T00:00:00Z"
+  }
+}`,
+  },
+  {
+    method: 'PUT',
+    path: '/api/v1/user/profile',
+    auth: true,
+    desc: '更新昵称/头像/手机/邮箱',
+    handler: 'UserHandler.UpdateProfile',
+    icon: Edit,
+    color: 'bg-purple-500',
+    reqBody: `{
+  "nickname": "三哥",
+  "avatar": "https://cdn.example.com/avatar/10001.png"
+}`,
+    resBody: `{
+  "code": 0,
+  "message": "success",
+  "data": null
+}`,
+  },
+  {
+    method: 'PUT',
+    path: '/api/v1/user/password',
+    auth: true,
+    desc: '修改密码（需验证旧密码）',
+    handler: 'UserHandler.UpdatePassword',
+    icon: RefreshCw,
+    color: 'bg-orange-500',
+    reqBody: `{
+  "old_password": "123456",
+  "new_password": "654321"
+}`,
+    resBody: `{
+  "code": 0,
+  "message": "success",
+  "data": null
+}`,
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/user/logout',
+    auth: true,
+    desc: '登出，Token加入黑名单',
+    handler: 'UserHandler.Logout',
+    icon: LogOut,
+    color: 'bg-red-500',
+    resBody: `{
+  "code": 0,
+  "message": "success",
+  "data": null
+}`,
+  },
+]
 
-      <div className="relative z-10 max-w-4xl">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="flex items-center gap-3 mb-6"
-        >
-          <Badge variant="outline" className="border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-500/5 px-3 py-1 text-xs font-medium">
-            SLG Strategy Card Game
-          </Badge>
-          <Badge variant="outline" className="border-red-500/30 text-red-600 dark:text-red-400 bg-red-500/5 px-3 py-1 text-xs font-medium">
-            Go + Unity
-          </Badge>
-        </motion.div>
-
-        <motion.h1
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="text-4xl md:text-5xl lg:text-6xl font-black tracking-tight"
-        >
-          <span className="bg-gradient-to-r from-amber-600 via-orange-500 to-red-500 bg-clip-text text-transparent">
-            九州争鼎
-          </span>
-        </motion.h1>
-
-        <motion.p
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="mt-3 text-lg md:text-xl text-muted-foreground font-medium tracking-wide"
-        >
-          Jiuzhou Zhengding — 完整微服务架构项目结构
-        </motion.p>
-
-        <motion.p
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="mt-4 text-sm md:text-base text-muted-foreground/80 max-w-2xl leading-relaxed"
-        >
-          基于Go微服务 + Unity客户端的全栈SLG卡牌游戏架构方案。
-          涵盖 11 个核心微服务、Protobuf通信协议、MySQL+Redis数据层、
-          Docker/K8s容器化部署、Nginx网关接入层等完整生产级设计。
-        </motion.p>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className="mt-8 flex flex-wrap gap-3"
-        >
-          {[
-            { label: '11 个微服务', color: 'text-amber-600 dark:text-amber-400' },
-            { label: 'Protobuf 协议', color: 'text-emerald-600 dark:text-emerald-400' },
-            { label: 'MySQL + Redis', color: 'text-purple-600 dark:text-purple-400' },
-            { label: 'Docker 部署', color: 'text-blue-600 dark:text-blue-400' },
-            { label: 'API 网关', color: 'text-orange-600 dark:text-orange-400' },
-          ].map((tag) => (
-            <span
-              key={tag.label}
-              className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border bg-card ${tag.color} border-current/20`}
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-current" />
-              {tag.label}
-            </span>
-          ))}
-        </motion.div>
-      </div>
-    </motion.section>
-  )
+// ==================== Redis Cache Design ====================
+interface CacheItem {
+  key: string
+  type: string
+  ttl: string
+  desc: string
+  example: string
 }
 
-// ==================== Architecture Overview ====================
-function ArchitectureOverview() {
+const redisCacheDesign: CacheItem[] = [
+  {
+    key: 'user:info:{user_id}',
+    type: 'Hash',
+    ttl: '30 min',
+    desc: '用户基本信息缓存，减少DB查询',
+    example: `HSET user:info:10001 id 10001 username "zhangsan" nickname "张三" vip_level 3 gold 10000
+HEXISTS user:info:10001`,
+  },
+  {
+    key: 'user:session:{token}',
+    type: 'String',
+    ttl: '2 hours',
+    desc: 'Token → UserID 映射，用于快速鉴权',
+    example: `SET user:session:eyJhbGciOiJI... 10001 EX 7200
+GET user:session:eyJhbGciOiJI...`,
+  },
+  {
+    key: 'user:blacklist:{token}',
+    type: 'String',
+    ttl: '2 hours',
+    desc: '已注销的 Token 黑名单，TTL = 剩余有效期',
+    example: `SET user:blacklist:eyJhbGciOiJI... 1 EX 3600
+EXISTS user:blacklist:eyJhbGciOiJI...`,
+  },
+  {
+    key: 'user:login:cnt:{username}',
+    type: 'String',
+    ttl: '15 min',
+    desc: '登录失败次数，超过5次锁定15分钟',
+    example: `INCR user:login:cnt:zhangsan
+EXPIRE user:login:cnt:zhangsan 900
+GET user:login:cnt:zhangsan`,
+  },
+]
+
+// ==================== Code Viewer Component ====================
+function CodeBlock({ code, lang = 'go', filename }: { code: string; lang: string; filename: string }) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(code).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }, [code])
+
   return (
-    <section className="space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="w-1 h-8 rounded-full bg-gradient-to-b from-amber-500 to-orange-600" />
-        <div>
-          <h2 className="text-2xl font-bold">系统架构总览</h2>
-          <p className="text-sm text-muted-foreground mt-1">Go微服务后端 + Unity客户端 + 网关接入 + 数据层</p>
+    <div className="relative rounded-lg overflow-hidden border">
+      <div className="flex items-center justify-between px-4 py-2 bg-zinc-800 dark:bg-zinc-900 border-b border-zinc-700">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-full bg-red-500/80" />
+            <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
+            <div className="w-3 h-3 rounded-full bg-green-500/80" />
+          </div>
+          <span className="text-xs text-zinc-400 font-mono ml-2">{filename}</span>
         </div>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-zinc-400 hover:text-zinc-200"
+                onClick={handleCopy}
+              >
+                {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{copied ? '已复制' : '复制代码'}</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Client Layer */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="space-y-3"
-        >
-          <div className="flex items-center gap-2 mb-2">
-            <Globe className="w-5 h-5 text-blue-500" />
-            <h3 className="font-bold text-lg">客户端层</h3>
-          </div>
-          <Card className="border-blue-200 dark:border-blue-800/50 bg-blue-50/50 dark:bg-blue-950/20">
-            <CardContent className="p-4 space-y-2">
-              {['Unity 客户端 (C#)', 'Protobuf 通信协议', 'Addressable 热更新', 'MVC UI 框架'].map((item) => (
-                <div key={item} className="flex items-center gap-2 text-sm">
-                  <ArrowRight className="w-3 h-3 text-blue-500" />
-                  {item}
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* Service Layer */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ delay: 0.1 }}
-          className="space-y-3"
-        >
-          <div className="flex items-center gap-2 mb-2">
-            <Server className="w-5 h-5 text-emerald-500" />
-            <h3 className="font-bold text-lg">微服务层</h3>
-          </div>
-          <Card className="border-emerald-200 dark:border-emerald-800/50 bg-emerald-50/50 dark:bg-emerald-950/20">
-            <CardContent className="p-4 space-y-2">
-              {['API 网关 (Nginx+Go)', '11 个核心微服务', 'gRPC 内部通信', 'Consul 服务发现'].map((item) => (
-                <div key={item} className="flex items-center gap-2 text-sm">
-                  <ArrowRight className="w-3 h-3 text-emerald-500" />
-                  {item}
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* Data Layer */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ delay: 0.2 }}
-          className="space-y-3"
-        >
-          <div className="flex items-center gap-2 mb-2">
-            <Database className="w-5 h-5 text-purple-500" />
-            <h3 className="font-bold text-lg">数据层</h3>
-          </div>
-          <Card className="border-purple-200 dark:border-purple-800/50 bg-purple-50/50 dark:bg-purple-950/20">
-            <CardContent className="p-4 space-y-2">
-              {['MySQL 8.0 (持久化)', 'Redis 7.0 (缓存+排行榜)', 'Protobuf (序列化)', 'Prometheus (监控)'].map((item) => (
-                <div key={item} className="flex items-center gap-2 text-sm">
-                  <ArrowRight className="w-3 h-3 text-purple-500" />
-                  {item}
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </motion.div>
-      </div>
-
-      {/* Request Flow */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ delay: 0.3 }}
+      <SyntaxHighlighter
+        language={lang}
+        style={oneDark}
+        customStyle={{
+          margin: 0,
+          padding: '16px',
+          fontSize: '12px',
+          lineHeight: '1.6',
+          background: '#1e1e2e',
+        }}
+        showLineNumbers
+        lineNumberStyle={{ color: '#585b70', fontSize: '11px', minWidth: '3em' }}
       >
-        <Card className="border-dashed">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <ArrowDown className="w-4 h-4 text-amber-500" />
-              请求流转链路
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap items-center gap-2 text-sm">
-              {[
-                'Unity客户端',
-                'TCP/WebSocket',
-                'Nginx',
-                'API网关',
-                'JWT鉴权',
-                '服务发现',
-                'gRPC',
-                '目标微服务',
-                'MySQL/Redis',
-              ].map((step, i) => (
-                <span key={step} className="flex items-center gap-2">
-                  <Badge variant="secondary" className="px-2.5 py-1 text-xs font-mono">
-                    {step}
-                  </Badge>
-                  {i < 8 && (
-                    <ArrowRight className="w-3 h-3 text-muted-foreground/40" />
-                  )}
-                </span>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
-    </section>
+        {code}
+      </SyntaxHighlighter>
+    </div>
   )
 }
 
-// ==================== Module Cards ====================
-function ModuleCards() {
-  const [expandedId, setExpandedId] = useState<string | null>(null)
+// ==================== Source Code Files Content ====================
+// We'll lazy-load the actual source code
+function getSourceContent(path: string): string {
+  const contents: Record<string, string> = {
+    'cmd/main.go': `package main
 
-  return (
-    <section className="space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="w-1 h-8 rounded-full bg-gradient-to-b from-emerald-500 to-teal-600" />
-        <div>
-          <h2 className="text-2xl font-bold">微服务模块详解</h2>
-          <p className="text-sm text-muted-foreground mt-1">11个核心微服务的职责、技术栈与通信协议</p>
-        </div>
-      </div>
+import (
+\t"fmt"
+\t"log"
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {backendModules.map((mod, idx) => {
-          const IconComp = iconMap[mod.icon] || Server
-          const id = mod.name
-          const isExpanded = expandedId === id
+\t"user-service/internal/dao"
+\t"user-service/internal/handler"
+\t"user-service/internal/router"
+\t"user-service/internal/service"
+\tpkgmysql "user-service/pkg/mysql"
+\tmyredis "user-service/pkg/redis"
+\tpkgresponse "user-service/pkg/response"
 
-          return (
-            <motion.div
-              key={id}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: idx * 0.05 }}
-            >
-              <Collapsible open={isExpanded} onOpenChange={(open) => setExpandedId(open ? id : null)}>
-                <Card className={`group cursor-pointer transition-all duration-300 hover:shadow-md ${isExpanded ? 'ring-1 ring-primary/20 shadow-md' : ''}`}>
-                  <CollapsibleTrigger asChild>
-                    <CardHeader className="pb-3">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${mod.color} flex items-center justify-center shadow-sm`}>
-                            <IconComp className="w-5 h-5 text-white" />
-                          </div>
-                          <div className="text-left">
-                            <CardTitle className="text-sm font-bold leading-tight">{mod.name}</CardTitle>
-                            <CardDescription className="text-[10px] font-mono mt-0.5">{mod.nameEn}</CardDescription>
-                          </div>
-                        </div>
-                        <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
-                      </div>
-                      <p className="text-xs text-muted-foreground leading-relaxed mt-1">{mod.description}</p>
-                      {mod.port && (
-                        <div className="flex items-center gap-2 mt-2">
-                          <Badge variant="outline" className="text-[10px] px-2 py-0">
-                            {mod.port}
-                          </Badge>
-                          <Badge variant="outline" className="text-[10px] px-2 py-0">
-                            {mod.protocol}
-                          </Badge>
-                        </div>
-                      )}
-                    </CardHeader>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <CardContent className="pt-0 space-y-4">
-                      <Separator />
-                      <div>
-                        <h4 className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
-                          <Activity className="w-3 h-3" />
-                          核心职责
-                        </h4>
-                        <ul className="space-y-1.5">
-                          {mod.responsibilities.map((r) => (
-                            <li key={r} className="flex items-start gap-2 text-xs text-muted-foreground">
-                              <span className="w-1 h-1 rounded-full bg-amber-500 mt-1.5 flex-shrink-0" />
-                              {r}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                      <div>
-                        <h4 className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
-                          <HardDrive className="w-3 h-3" />
-                          技术栈
-                        </h4>
-                        <div className="flex flex-wrap gap-1.5">
-                          {mod.techStack.map((t) => (
-                            <Badge key={t} variant="secondary" className="text-[10px] px-2 py-0 font-mono">
-                              {t}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </CollapsibleContent>
-                </Card>
-              </Collapsible>
-            </motion.div>
-          )
-        })}
-      </div>
-    </section>
-  )
-}
+\t"github.com/gin-gonic/gin"
+\t"github.com/spf13/viper"
+)
 
-// ==================== Gateway Design ====================
-function GatewaySection() {
-  return (
-    <section className="space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="w-1 h-8 rounded-full bg-gradient-to-b from-orange-500 to-red-600" />
-        <div>
-          <h2 className="text-2xl font-bold">网关架构设计</h2>
-          <p className="text-sm text-muted-foreground mt-1">多层网关架构，从接入到服务的完整链路</p>
-        </div>
-      </div>
+func main() {
+\t// 1. 加载配置
+\tconf := viper.New()
+\tconf.SetConfigName("config")
+\tconf.SetConfigType("yaml")
+\tconf.AddConfigPath("./config")
+\tconf.AddConfigPath(".")
+\tif err := conf.ReadInConfig(); err != nil {
+\t\tlog.Fatalf("加载配置文件失败: %v", err)
+\t}
 
-      <div className="space-y-3">
-        {gatewayDesign.layers.map((layer, idx) => (
-          <motion.div
-            key={layer.name}
-            initial={{ opacity: 0, x: idx % 2 === 0 ? -20 : 20 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: idx * 0.1 }}
-          >
-            <Card className={`border-l-4 ${layer.color}`}>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-bold flex items-center gap-2">
-                  {idx === 0 && <Globe className="w-4 h-4" />}
-                  {idx === 1 && <Server className="w-4 h-4" />}
-                  {idx === 2 && <Route className="w-4 h-4" />}
-                  {idx === 3 && <Zap className="w-4 h-4" />}
-                  {idx === 4 && <Database className="w-4 h-4" />}
-                  {layer.name}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-2">
-                  {layer.items.map((item) => (
-                    <Badge key={item} variant="outline" className="text-xs px-2.5 py-1">
-                      {item}
-                    </Badge>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        ))}
-      </div>
+\t// 2. 初始化 MySQL
+\tif err := pkgmysql.Init(conf); err != nil {
+\t\tlog.Fatalf("MySQL 初始化失败: %v", err)
+\t}
+\tdefer pkgmysql.Close()
 
-      {/* Gateway Filters Detail */}
-      <Card className="border-dashed bg-amber-50/30 dark:bg-amber-950/10">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-amber-500" />
-            网关过滤器链
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {[
-              { icon: Lock, name: '鉴权过滤器', desc: 'JWT Token校验与黑名单检查，未授权请求直接拦截' },
-              { icon: Activity, name: '限流过滤器', desc: '令牌桶+滑动窗口双限流，按用户/IP/接口维度' },
-              { icon: RefreshCw, name: '熔断降级器', desc: 'Hystrix模式熔断，失败率超阈值自动降级返回缓存' },
-              { icon: Eye, name: '链路追踪', desc: 'OpenTelemetry集成，TraceID透传全链路追踪' },
-              { icon: Search, name: '服务发现', desc: 'Consul/Etcd注册中心，动态感知服务上下线' },
-              { icon: RotateCcw, name: '负载均衡', desc: '轮询/加权/一致性哈希多种策略，自动剔除异常节点' },
-            ].map(({ icon: Icon, name, desc }) => (
-              <div key={name} className="flex items-start gap-2.5 p-2 rounded-lg hover:bg-accent/30 transition-colors">
-                <Icon className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-xs font-semibold">{name}</p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-    </section>
-  )
-}
+\t// 3. 初始化 Redis
+\tif err := myredis.Init(conf); err != nil {
+\t\tlog.Fatalf("Redis 初始化失败: %v", err)
+\t}
+\tdefer myredis.Close()
 
-// ==================== Docker Deployment ====================
-function DockerDeployment() {
-  return (
-    <section className="space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="w-1 h-8 rounded-full bg-gradient-to-b from-blue-500 to-cyan-600" />
-        <div>
-          <h2 className="text-2xl font-bold">Docker 部署方案</h2>
-          <p className="text-sm text-muted-foreground mt-1">容器化部署架构，支持Docker Compose与Kubernetes</p>
-        </div>
-      </div>
+\t// 4. 初始化依赖层（DAO → Service → Handler）
+\tuserDAO := dao.NewUserDAO(pkgmysql.DB)
+\tuserService := service.NewUserService(userDAO)
+\tuserHandler := handler.NewUserHandler(userService)
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {dockerServices.map((svc, idx) => (
-          <motion.div
-            key={svc.name}
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: idx * 0.03 }}
-          >
-            <Card className="h-full hover:shadow-md transition-shadow">
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-bold flex items-center gap-2">
-                    <Container className="w-4 h-4 text-blue-500" />
-                    {svc.name}
-                  </CardTitle>
-                  <Badge variant="outline" className="text-[10px] font-mono">
-                    {svc.port}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <HardDrive className="w-3 h-3" />
-                    镜像: <code className="text-[10px] font-mono bg-muted px-1 rounded">{svc.image.split(':')[0]}</code>
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  实例: <span className="font-medium text-foreground">{svc.replicas}</span>
-                </p>
-                {svc.depends_on && (
-                  <p className="text-xs text-muted-foreground">
-                    依赖: <span className="font-mono text-[10px]">{svc.depends_on.join(', ')}</span>
-                  </p>
-                )}
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {svc.env.map((e) => (
-                    <Badge key={e} variant="secondary" className="text-[9px] px-1.5 py-0 font-mono">
-                      {e.split('=')[0]}
-                    </Badge>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        ))}
-      </div>
-    </section>
-  )
-}
+\t// 5. 启动 HTTP 服务
+\tgin.SetMode(conf.GetString("server.mode"))
+\tengine := gin.New()
+\trouter.Setup(engine, userHandler)
 
-// ==================== Database Design ====================
-function DatabaseSection() {
-  return (
-    <section className="space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="w-1 h-8 rounded-full bg-gradient-to-b from-purple-500 to-violet-600" />
-        <div>
-          <h2 className="text-2xl font-bold">数据库设计</h2>
-          <p className="text-sm text-muted-foreground mt-1">核心数据表结构与索引设计</p>
-        </div>
-      </div>
+\taddr := fmt.Sprintf("%s:%d",
+\t\tconf.GetString("server.host"),
+\t\tconf.GetInt("server.port"),
+\t)
+\t_ = pkgresponse.GetMessage(0)
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {databaseTables.map((table, idx) => (
-          <motion.div
-            key={table.name}
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: idx * 0.05 }}
-          >
-            <Card className="h-full hover:shadow-md transition-shadow">
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-2">
-                  <Database className="w-4 h-4 text-purple-500" />
-                  <CardTitle className="text-sm font-bold font-mono">{table.name}</CardTitle>
-                </div>
-                <CardDescription className="text-xs">{table.description}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div>
-                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">字段</p>
-                  <div className="flex flex-wrap gap-1">
-                    {table.keyFields.map((f) => (
-                      <Badge key={f} variant="outline" className="text-[10px] px-1.5 py-0 font-mono">
-                        {f}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">索引</p>
-                  <div className="flex flex-wrap gap-1">
-                    {table.indexes.map((idx) => (
-                      <Badge key={idx} variant="secondary" className="text-[10px] px-1.5 py-0 font-mono bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-800">
-                        {idx}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        ))}
-      </div>
-    </section>
-  )
-}
-
-// ==================== Footer ====================
-function FooterSection() {
-  return (
-    <footer className="border-t bg-muted/30">
-      <div className="max-w-7xl mx-auto px-4 py-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground">
-        <p>《九州争鼎》SLG卡牌游戏 — Go + Unity 微服务架构方案</p>
-        <div className="flex items-center gap-4">
-          <span className="flex items-center gap-1">
-            <Server className="w-3 h-3" />
-            Go 1.21+
-          </span>
-          <span className="flex items-center gap-1">
-            <Globe className="w-3 h-3" />
-            Unity 2022 LTS
-          </span>
-          <span className="flex items-center gap-1">
-            <Database className="w-3 h-3" />
-            MySQL 8.0 + Redis 7.0
-          </span>
-          <span className="flex items-center gap-1">
-            <Container className="w-3 h-3" />
-            Docker + K8s
-          </span>
-        </div>
-      </div>
-    </footer>
-  )
+\tfmt.Printf("用户服务启动 → http://%s\\n", addr)
+\tengine.Run(addr)
+}`,
+  }
+  return contents[path] || '// 查看下方文件树中的源代码'
 }
 
 // ==================== Main Page ====================
 export default function Home() {
+  const [activeFile, setActiveFile] = useState(0)
+  const [apiTab, setApiTab] = useState(0)
+
   return (
     <TooltipProvider>
       <div className="min-h-screen flex flex-col bg-background">
-        <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-8 md:py-12 space-y-16">
-          {/* Hero */}
-          <HeroSection />
+        <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-8 md:py-12 space-y-12">
 
-          {/* Architecture Overview */}
-          <ArchitectureOverview />
-
-          {/* Module Cards */}
-          <ModuleCards />
-
-          {/* Directory Trees */}
-          <section className="space-y-6">
-            <div className="flex items-center gap-3">
-              <div className="w-1 h-8 rounded-full bg-gradient-to-b from-violet-500 to-purple-600" />
-              <div>
-                <h2 className="text-2xl font-bold">完整目录结构</h2>
-                <p className="text-sm text-muted-foreground mt-1">Go后端与Unity客户端的完整项目文件树</p>
+          {/* ===== Hero ===== */}
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-card via-card to-card/80 p-8 md:p-12"
+          >
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+              <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-gradient-to-br from-cyan-500/10 via-emerald-500/5 to-transparent blur-3xl" />
+              <div className="absolute -bottom-24 -left-24 w-96 h-96 rounded-full bg-gradient-to-tr from-amber-500/10 via-orange-500/5 to-transparent blur-3xl" />
+            </div>
+            <div className="relative z-10">
+              <div className="flex items-center gap-3 mb-4">
+                <Badge variant="outline" className="border-cyan-500/30 text-cyan-600 dark:text-cyan-400 bg-cyan-500/5">
+                  Go Microservice
+                </Badge>
+                <Badge variant="outline" className="border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5">
+                  REST API
+                </Badge>
+                <Badge variant="outline" className="border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-500/5">
+                  JWT Auth
+                </Badge>
+              </div>
+              <h1 className="text-3xl md:text-4xl font-black">
+                <span className="bg-gradient-to-r from-cyan-600 via-emerald-500 to-amber-500 bg-clip-text text-transparent">
+                  用户系统微服务
+                </span>
+              </h1>
+              <p className="mt-2 text-lg text-muted-foreground font-medium">User Service — 完整实现</p>
+              <p className="mt-3 text-sm text-muted-foreground/80 max-w-2xl leading-relaxed">
+                基于 Gin + MySQL + Redis + JWT 的用户系统微服务完整实现。
+                涵盖注册登录、Token认证、信息管理、VIP等级、缓存策略、防暴力破解等生产级功能。
+              </p>
+              <div className="mt-6 flex flex-wrap gap-2">
+                {[
+                  '注册 / 登录', 'JWT 双Token', 'VIP 等级', 'Redis 多级缓存',
+                  'Token 黑名单', '登录限流', 'bcrypt 加密', '统一响应',
+                ].map((tag) => (
+                  <Badge key={tag} variant="secondary" className="text-xs px-2.5 py-1">
+                    {tag}
+                  </Badge>
+                ))}
               </div>
             </div>
+          </motion.section>
 
-            <Tabs defaultValue="backend" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 max-w-md">
-                <TabsTrigger value="backend" className="gap-2">
-                  <Server className="w-3.5 h-3.5" />
-                  Go 后端
-                </TabsTrigger>
-                <TabsTrigger value="client" className="gap-2">
-                  <Globe className="w-3.5 h-3.5" />
-                  Unity 客户端
-                </TabsTrigger>
-              </TabsList>
-              <TabsContent value="backend" className="mt-4">
-                <DirectoryTree
-                  data={goBackendTree}
-                  title="jiuzhou-server/ — Go微服务后端"
-                  accentColor="text-cyan-600 dark:text-cyan-400"
-                />
-              </TabsContent>
-              <TabsContent value="client" className="mt-4">
-                <DirectoryTree
-                  data={unityClientTree}
-                  title="jiuzhou-client/ — Unity客户端"
-                  accentColor="text-green-600 dark:text-green-400"
-                />
-              </TabsContent>
-            </Tabs>
-          </section>
+          {/* ===== Architecture Layers ===== */}
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="space-y-4"
+          >
+            <h2 className="text-2xl font-bold flex items-center gap-3">
+              <div className="w-1 h-8 rounded-full bg-gradient-to-b from-cyan-500 to-emerald-600" />
+              分层架构
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {[
+                { name: 'Handler 层', desc: 'HTTP 请求处理、参数校验、响应封装', color: 'border-blue-300 bg-blue-50/50 dark:bg-blue-950/20' },
+                { name: 'Service 层', desc: '业务逻辑、Redis 缓存、Token 黑名单', color: 'border-emerald-300 bg-emerald-50/50 dark:bg-emerald-950/20' },
+                { name: 'DAO 层', desc: 'MySQL CRUD、SQL 编写、错误处理', color: 'border-amber-300 bg-amber-50/50 dark:bg-amber-950/20' },
+                { name: 'Middleware', desc: 'JWT 鉴权、CORS 跨域、异常恢复', color: 'border-purple-300 bg-purple-50/50 dark:bg-purple-950/20' },
+              ].map((layer) => (
+                <Card key={layer.name} className={`border ${layer.color}`}>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-bold">{layer.name}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-xs text-muted-foreground">{layer.desc}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </motion.section>
 
-          {/* Gateway Design */}
-          <GatewaySection />
+          {/* ===== REST API ===== */}
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="space-y-4"
+          >
+            <h2 className="text-2xl font-bold flex items-center gap-3">
+              <div className="w-1 h-8 rounded-full bg-gradient-to-b from-blue-500 to-cyan-600" />
+              REST API 设计
+            </h2>
 
-          {/* Docker Deployment */}
-          <DockerDeployment />
+            <div className="space-y-3">
+              {apiEndpoints.map((api, idx) => {
+                const Icon = api.icon
+                return (
+                  <Collapsible key={api.path}>
+                    <Card className="hover:shadow-sm transition-shadow">
+                      <CollapsibleTrigger className="w-full text-left">
+                        <CardHeader className="pb-3">
+                          <div className="flex items-center gap-3 flex-wrap">
+                            <span className={`px-2.5 py-1 rounded-md text-white text-xs font-bold font-mono ${api.color}`}>
+                              {api.method}
+                            </span>
+                            <code className="text-sm font-mono font-semibold">{api.path}</code>
+                            {api.auth && (
+                              <Badge variant="outline" className="text-[10px] gap-1 border-amber-300 text-amber-600 dark:text-amber-400">
+                                <Lock className="w-3 h-3" /> JWT
+                              </Badge>
+                            )}
+                            <span className="text-xs text-muted-foreground ml-auto">{api.desc}</span>
+                            <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                          </div>
+                        </CardHeader>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <CardContent className="pt-0 space-y-4">
+                          <Separator />
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {api.reqBody && (
+                              <div>
+                                <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1">
+                                  <ArrowRight className="w-3 h-3" /> Request Body
+                                </p>
+                                <CodeBlock code={api.reqBody} lang="json" filename="request.json" />
+                              </div>
+                            )}
+                            {api.resBody && (
+                              <div>
+                                <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1">
+                                  <ArrowRight className="w-3 h-3 rotate-180" /> Response Body
+                                </p>
+                                <CodeBlock code={api.resBody} lang="json" filename="response.json" />
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </CollapsibleContent>
+                    </Card>
+                  </Collapsible>
+                )
+              })}
+            </div>
 
-          {/* Database Design */}
-          <DatabaseSection />
+            {/* Error Codes */}
+            <Card className="border-dashed">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-bold">统一错误码</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+                  {[
+                    { code: 0, msg: '成功' },
+                    { code: 10001, msg: '参数错误' },
+                    { code: 10002, msg: '认证失败' },
+                    { code: 10003, msg: 'Token无效' },
+                    { code: 10004, msg: '服务器错误' },
+                    { code: 10007, msg: '用户名已存在' },
+                    { code: 10008, msg: '密码错误' },
+                    { code: 10009, msg: '用户不存在' },
+                    { code: 10010, msg: '账号已被禁用' },
+                  ].map(({ code, msg }) => (
+                    <div key={code} className="flex items-center gap-2 p-1.5 rounded bg-muted/50">
+                      <code className="text-xs font-mono font-semibold text-amber-600 dark:text-amber-400">{code}</code>
+                      <span className="text-xs text-muted-foreground">{msg}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </motion.section>
+
+          {/* ===== MySQL Schema ===== */}
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="space-y-4"
+          >
+            <h2 className="text-2xl font-bold flex items-center gap-3">
+              <div className="w-1 h-8 rounded-full bg-gradient-to-b from-amber-500 to-orange-600" />
+              MySQL 表结构
+            </h2>
+
+            {/* Fields Table */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-bold flex items-center gap-2">
+                  <Database className="w-4 h-4 text-amber-500" />
+                  users 表
+                </CardTitle>
+                <CardDescription>引擎: InnoDB | 字符集: utf8mb4 | 索引: 主键 + 3个唯一键 + 4个普通键</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b text-left">
+                        <th className="py-2 px-2 font-semibold text-muted-foreground">字段</th>
+                        <th className="py-2 px-2 font-semibold text-muted-foreground">类型</th>
+                        <th className="py-2 px-2 font-semibold text-muted-foreground">默认</th>
+                        <th className="py-2 px-2 font-semibold text-muted-foreground">约束</th>
+                        <th className="py-2 px-2 font-semibold text-muted-foreground">说明</th>
+                      </tr>
+                    </thead>
+                    <tbody className="font-mono">
+                      {[
+                        ['id', 'BIGINT', 'AUTO_INCREMENT', 'PK', '用户ID'],
+                        ['username', 'VARCHAR(64)', "''", 'UNIQUE NOT NULL', '用户名'],
+                        ['password', 'VARCHAR(255)', "''", 'NOT NULL', '密码(bcrypt)'],
+                        ['nickname', 'VARCHAR(64)', "''", '', '昵称'],
+                        ['avatar', 'VARCHAR(512)', "''", '', '头像URL'],
+                        ['phone', 'VARCHAR(20)', 'NULL', 'UNIQUE', '手机号'],
+                        ['email', 'VARCHAR(128)', 'NULL', 'UNIQUE', '邮箱'],
+                        ['vip_level', 'TINYINT', '0', 'NOT NULL', 'VIP等级(0~15)'],
+                        ['vip_expire_time', 'DATETIME', 'NULL', '', 'VIP过期时间'],
+                        ['gold', 'BIGINT', '0', 'NOT NULL', '金币'],
+                        ['diamond', 'BIGINT', '0', 'NOT NULL', '钻石'],
+                        ['level', 'INT', '1', 'NOT NULL', '用户等级'],
+                        ['experience', 'BIGINT', '0', 'NOT NULL', '经验值'],
+                        ['last_login_at', 'DATETIME', 'NULL', '', '最后登录时间'],
+                        ['status', 'TINYINT', '1', 'NOT NULL', '1=正常 0=禁用'],
+                        ['created_at', 'DATETIME', 'NOW()', 'NOT NULL', '创建时间'],
+                        ['updated_at', 'DATETIME', 'NOW()', 'NOT NULL', '更新时间(自动)'],
+                      ].map(([field, type, def, constraint, desc]) => (
+                        <tr key={field} className="border-b border-border/50 hover:bg-muted/30">
+                          <td className="py-1.5 px-2 font-semibold text-cyan-700 dark:text-cyan-400">{field}</td>
+                          <td className="py-1.5 px-2 text-purple-600 dark:text-purple-400">{type}</td>
+                          <td className="py-1.5 px-2 text-muted-foreground">{def}</td>
+                          <td className="py-1.5 px-2">
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-sans font-medium ${
+                              constraint.includes('PK') ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
+                              constraint.includes('UNIQUE') ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                              constraint.includes('NOT NULL') ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                              'bg-muted text-muted-foreground'
+                            }`}>
+                              {constraint || '-'}
+                            </span>
+                          </td>
+                          <td className="py-1.5 px-2 font-sans text-muted-foreground">{desc}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.section>
+
+          {/* ===== Redis Cache ===== */}
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="space-y-4"
+          >
+            <h2 className="text-2xl font-bold flex items-center gap-3">
+              <div className="w-1 h-8 rounded-full bg-gradient-to-b from-red-500 to-rose-600" />
+              Redis 缓存设计
+            </h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {redisCacheDesign.map((cache, idx) => (
+                <motion.div
+                  key={cache.key}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: idx * 0.1 }}
+                >
+                  <Card className="h-full">
+                    <CardHeader className="pb-2">
+                      <div className="flex items-center justify-between">
+                        <code className="text-sm font-mono font-bold text-red-600 dark:text-red-400">{cache.key}</code>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-[10px]">{cache.type}</Badge>
+                          <Badge variant="secondary" className="text-[10px] gap-1">
+                            <Clock className="w-3 h-3" /> {cache.ttl}
+                          </Badge>
+                        </div>
+                      </div>
+                      <CardDescription className="text-xs mt-1">{cache.desc}</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <CodeBlock code={cache.example} lang="redis" filename="redis-cli" />
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ))}
+            </div>
+
+            {/* Auth Flow */}
+            <Card className="border-dashed bg-red-50/30 dark:bg-red-950/10">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-bold flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-red-500" />
+                  JWT 认证流程
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  {[
+                    '客户端发请求',
+                    '携带 Bearer Token',
+                    'JWT中间件拦截',
+                    '检查黑名单',
+                    '解析Token',
+                    '注入user_id到Context',
+                    'Handler处理业务',
+                  ].map((step, i) => (
+                    <span key={step} className="flex items-center gap-2">
+                      <Badge variant="secondary" className="px-2 py-1 text-xs">{step}</Badge>
+                      {i < 6 && <ArrowRight className="w-3 h-3 text-muted-foreground/40" />}
+                    </span>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </motion.section>
+
+          {/* ===== Project Files ===== */}
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="space-y-4"
+          >
+            <h2 className="text-2xl font-bold flex items-center gap-3">
+              <div className="w-1 h-8 rounded-full bg-gradient-to-b from-violet-500 to-purple-600" />
+              完整源码
+              <span className="text-xs text-muted-foreground font-normal ml-1">（14个文件）</span>
+            </h2>
+
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+              {/* File Tree Sidebar */}
+              <Card className="lg:col-span-1 p-0 overflow-hidden">
+                <div className="p-3 border-b bg-muted/30">
+                  <p className="text-xs font-semibold flex items-center gap-1.5">
+                    <FolderOpen className="w-3.5 h-3.5 text-amber-500" />
+                    user-service/
+                  </p>
+                </div>
+                <ScrollArea className="h-[500px]">
+                  <div className="p-1">
+                    {sourceFiles.map((file, idx) => {
+                      const Icon = file.icon
+                      const isActive = activeFile === idx
+                      return (
+                        <button
+                          key={file.path}
+                          onClick={() => setActiveFile(idx)}
+                          className={`w-full text-left px-3 py-2 rounded-md text-xs flex items-center gap-2 transition-colors ${
+                            isActive
+                              ? 'bg-primary text-primary-foreground'
+                              : 'hover:bg-muted'
+                          }`}
+                        >
+                          <Icon className={`w-3.5 h-3.5 flex-shrink-0 ${isActive ? 'text-primary-foreground' : 'text-muted-foreground'}`} />
+                          <div className="min-w-0">
+                            <p className="font-medium truncate">{file.name}</p>
+                            <p className={`text-[10px] truncate ${isActive ? 'text-primary-foreground/70' : 'text-muted-foreground/60'}`}>
+                              {file.path}
+                            </p>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </ScrollArea>
+              </Card>
+
+              {/* Code Viewer */}
+              <Card className="lg:col-span-3 p-0 overflow-hidden">
+                <div className="p-3 border-b bg-muted/30 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FileCode className="w-4 h-4 text-muted-foreground" />
+                    <code className="text-sm font-mono font-semibold">{sourceFiles[activeFile].path}</code>
+                  </div>
+                  <Badge variant="outline" className="text-[10px]">{sourceFiles[activeFile].desc}</Badge>
+                </div>
+                <ScrollArea className="h-[500px]">
+                  <div className="p-4">
+                    <CodeBlock
+                      code={getSourceContent(sourceFiles[activeFile].path)}
+                      lang={sourceFiles[activeFile].lang}
+                      filename={sourceFiles[activeFile].name}
+                    />
+                    <div className="mt-4 p-3 rounded-lg bg-muted/50">
+                      <p className="text-xs text-muted-foreground">
+                        📁 完整源码位于 <code className="font-mono text-amber-600 dark:text-amber-400">user-service/</code> 目录下，
+                        共 14 个文件，可直接用于生产环境。
+                      </p>
+                    </div>
+                  </div>
+                </ScrollArea>
+              </Card>
+            </div>
+          </motion.section>
+
+          {/* ===== Quick Start ===== */}
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="space-y-4"
+          >
+            <h2 className="text-2xl font-bold flex items-center gap-3">
+              <div className="w-1 h-8 rounded-full bg-gradient-to-b from-green-500 to-emerald-600" />
+              快速启动
+            </h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-bold flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold">1</span>
+                    建库建表
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <CodeBlock
+                    code={`mysql -u root -p < docs/schema.sql`}
+                    lang="bash"
+                    filename="terminal"
+                  />
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-bold flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold">2</span>
+                    修改配置
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <CodeBlock
+                    code={`# config/config.yaml
+mysql:
+  host: "127.0.0.1"
+  password: "your_password"
+redis:
+  host: "127.0.0.1"
+  password: "your_redis_pwd"`}
+                    lang="yaml"
+                    filename="config.yaml"
+                  />
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-bold flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold">3</span>
+                    启动服务
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <CodeBlock
+                    code={`cd user-service
+go mod tidy
+go run cmd/main.go
+
+# 服务启动于 http://localhost:9001`}
+                    lang="bash"
+                    filename="terminal"
+                  />
+                </CardContent>
+              </Card>
+            </div>
+          </motion.section>
+
         </main>
 
-        <FooterSection />
+        {/* ===== Footer ===== */}
+        <footer className="border-t bg-muted/30">
+          <div className="max-w-7xl mx-auto px-4 py-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground">
+            <p>九州争鼎 — 用户系统微服务 · Go + Gin + MySQL + Redis + JWT</p>
+            <div className="flex items-center gap-4">
+              <span className="flex items-center gap-1"><Server className="w-3 h-3" />Gin Framework</span>
+              <span className="flex items-center gap-1"><Database className="w-3 h-3" />MySQL 8.0</span>
+              <span className="flex items-center gap-1"><HardDrive className="w-3 h-3" />Redis 7.0</span>
+              <span className="flex items-center gap-1"><Key className="w-3 h-3" />JWT HS256</span>
+            </div>
+          </div>
+        </footer>
       </div>
     </TooltipProvider>
   )
