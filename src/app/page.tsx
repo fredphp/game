@@ -6,9 +6,9 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import {
   Copy, Check, ChevronDown, Database, Server, Shield, Swords,
-  Zap, ArrowRight, Layers, HardDrive, BadgeCheck, Star, Target,
-  TrendingUp, Clock, Flame, Heart, ShieldHalf, Sparkles, FileCode,
-  SwordsIcon, Crown, Skull, RotateCcw, type LucideIcon,
+  Zap, ArrowRight, Clock, FileCode, Target,
+  Map, Castle, Navigation, Timer, Users, Route,
+  Landmark, Crown, Flag, type LucideIcon,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -38,70 +38,99 @@ function CodeBlock({ code, lang = 'go', filename }: { code: string; lang: string
 }
 
 const sourceFiles = [
-  { name: 'main.go', desc: '服务入口' },
-  { name: 'battle_engine.go', desc: '战斗引擎核心 (350+ 行)' },
-  { name: 'battle_model.go', desc: '数据模型' },
-  { name: 'battle_service.go', desc: '业务逻辑' },
-  { name: 'battle_dao.go', desc: '数据访问层' },
-  { name: 'battle_handler.go', desc: 'HTTP 处理器' },
-  { name: 'schema.sql', desc: '数据库建表 (3张)' },
-  { name: 'skills_config.json', desc: '技能配置 (7个技能)' },
+  { name: 'main.go', desc: '服务入口 + 行军引擎启动' },
+  { name: 'march_engine.go', desc: '行军引擎核心 (760+ 行)' },
+  { name: 'map_model.go', desc: '数据模型 (10个结构体)' },
+  { name: 'map_dao.go', desc: '数据访问层' },
+  { name: 'map_service.go', desc: '业务逻辑 + 缓存' },
+  { name: 'map_handler.go', desc: 'HTTP 处理器 (9个接口)' },
+  { name: 'router.go', desc: '路由注册' },
+  { name: 'schema.sql', desc: '数据库建表 (6张)' },
+  { name: 'map_config.json', desc: '地图配置' },
+  { name: 'auth.go', desc: 'JWT中间件' },
+  { name: 'config.yaml', desc: '服务配置' },
+  { name: 'mysql.go', desc: 'MySQL连接池' },
+  { name: 'redis.go', desc: 'Redis连接池' },
+  { name: 'response.go', desc: '统一响应' },
 ]
 
-const engineCode = `// 战斗引擎核心 - Execute 方法
-func (e *BattleEngine) Execute(attackers, defenders []*BattleUnit) *BattleResult {
-    for turn := 1; turn <= MaxTurns; turn++ {
-        // 1. 构建行动队列（速度排序 + ±10% 浮动）
-        actionQueue := e.buildActionQueue(attackers, defenders)
+const engineCode = `// 行军引擎核心 - BFS 寻路 + Redis Stream 消费
 
-        for _, unit := range actionQueue {
-            if !unit.Alive { continue }
+// InitiateMarch 发起行军
+func (e *MarchEngine) InitiateMarch(ctx context.Context, ...) (*MarchOrder, error) {
+    // 1. 校验活跃行军数上限
+    activeCount, _ := e.dao.CountUserActiveMarches(ctx, userID)
+    if activeCount >= e.maxActivePerUser { return nil, errLimit }
 
-            // 2. 处理 Buff/Debuff 回合计时
-            e.processBuffTick(unit, &battleTurn)
+    // 2. BFS 计算最短路径
+    path, distance, _ := e.calculatePath(ctx, sourceCityID, targetCityID)
 
-            // 3. 检查技能CD，选择技能或普攻
-            if unit.ActiveSkill != nil && unit.SkillCD <= 0 {
-                actions = e.executeSkill(unit, unit.ActiveSkill, enemies, allies)
-            } else {
-                actions = e.executeNormalAttack(unit, enemies)
-            }
+    // 3. 计算行军时间 = 距离 / 速度
+    marchDuration := distance / marchSpeed * 3600 // 秒
 
-            // 4. 检查胜负
-            if len(getAliveEnemies(unit)) == 0 {
-                winner = 1; break
-            }
-        }
-
-        if winner != 0 { break }
-    }
-    return result
+    // 4. 写入 MySQL + 推入 Redis Stream
+    e.dao.CreateMarch(ctx, march)
+    go e.publishMarchEvent(marchID, arriveTime) // 异步
 }
 
-// 伤害计算公式
-func (e *BattleEngine) calcDamage(atk, def int, ratio, counterMul float64, isCrit bool) int {
-    baseDmg := float64(atk) * ratio          // 基础伤害 = ATK × 技能倍率
-    reduction := float64(def) * 0.5           // 减伤 = DEF × 50%
-    damage := math.Max(baseDmg - reduction, 1) // 最低1点伤害
-    damage *= counterMul                       // 阵营克制加成
-    damage *= 0.95 + randomFloat()*0.1         // ±5% 浮动
-    if isCrit { damage *= 1.5 }                // 暴击 ×1.5
-    return int(math.Round(damage))
+// calculatePath BFS 最短路径
+func (e *MarchEngine) calculatePath(ctx, from, to int64) ([]int64, int, error) {
+    queue := []queueItem{{cityID: from, path: []int64{from}}}
+    visited := map[int64]bool{from: true}
+    for len(queue) > 0 {
+        current := queue[0]
+        for _, neighbor := range city.Connections {
+            if !visited[neighbor] {
+                dist := abs(current.X - neighbor.X) + abs(current.Y - neighbor.Y)
+                if neighbor == to { return newPath, newDist, nil }
+                queue = append(queue, ...)
+            }
+        }
+    }
+}
+
+// worker 消费者协程（5个并发）
+func (e *MarchEngine) worker(ctx, workerID) {
+    for {
+        // 1. 检查已到达行军 → 并发处理
+        arrived := e.dao.ListArrivedMarches(ctx, 50)
+        var wg sync.WaitGroup
+        for _, m := range arrived {
+            wg.Add(1)
+            go func(m) { e.ProcessArrival(ctx, m); wg.Done() }(m)
+        }
+        wg.Wait()
+        // 2. 从 Redis Stream 消费新事件
+        streams := myredis.RDB.XReadGroup(ctx, ...)
+    }
 }`
 
-const counterRelations = [
-  { atk: '魏', atkColor: 'text-blue-500', def: '蜀', defColor: 'text-emerald-500', arrow: '→' },
-  { atk: '蜀', atkColor: 'text-emerald-500', def: '吴', defColor: 'text-red-500', arrow: '→' },
-  { atk: '吴', atkColor: 'text-red-500', def: '魏', defColor: 'text-blue-500', arrow: '→' },
+const nineProvinces = [
+  { name: '冀州', desc: '北方粮仓，沃野千里', terrain: '平原', coords: '(180, 60)', icon: Landmark, color: 'border-amber-300 bg-amber-50/30 dark:bg-amber-950/10', badgeColor: 'bg-amber-500/10 text-amber-600 border-amber-200' },
+  { name: '兖州', desc: '中原腹地，四战之地', terrain: '平原', coords: '(160, 120)', icon: Map, color: 'border-orange-300 bg-orange-50/30 dark:bg-orange-950/10', badgeColor: 'bg-orange-500/10 text-orange-600 border-orange-200' },
+  { name: '青州', desc: '东方沿海，商贸发达', terrain: '沿海', coords: '(220, 100)', icon: Flag, color: 'border-cyan-300 bg-cyan-50/30 dark:bg-cyan-950/10', badgeColor: 'bg-cyan-500/10 text-cyan-600 border-cyan-200' },
+  { name: '徐州', desc: '东南沃野，物产丰饶', terrain: '平原', coords: '(210, 160)', icon: Landmark, color: 'border-green-300 bg-green-50/30 dark:bg-green-950/10', badgeColor: 'bg-green-500/10 text-green-600 border-green-200' },
+  { name: '豫州', desc: '天下之中，交通枢纽', terrain: '平原', coords: '(150, 180)', icon: Crown, color: 'border-yellow-300 bg-yellow-50/30 dark:bg-yellow-950/10', badgeColor: 'bg-yellow-500/10 text-yellow-600 border-yellow-200' },
+  { name: '荆州', desc: '南方重镇，兵家必争', terrain: '丘陵', coords: '(130, 250)', icon: Castle, color: 'border-red-300 bg-red-50/30 dark:bg-red-950/10', badgeColor: 'bg-red-500/10 text-red-600 border-red-200' },
+  { name: '扬州', desc: '东南繁华，鱼米之乡', terrain: '水乡', coords: '(220, 230)', icon: Flag, color: 'border-teal-300 bg-teal-50/30 dark:bg-teal-950/10', badgeColor: 'bg-teal-500/10 text-teal-600 border-teal-200' },
+  { name: '梁州', desc: '西方屏障，蜀道天险', terrain: '山地', coords: '(80, 200)', icon: Map, color: 'border-stone-300 bg-stone-50/30 dark:bg-stone-950/10', badgeColor: 'bg-stone-500/10 text-stone-600 border-stone-200' },
+  { name: '雍州', desc: '西北铁骑，大漠苍茫', terrain: '荒漠', coords: '(60, 100)', icon: Castle, color: 'border-rose-300 bg-rose-50/30 dark:bg-rose-950/10', badgeColor: 'bg-rose-500/10 text-rose-600 border-rose-200' },
 ]
 
-const elementRelations = [
-  { atk: '🔥 火', def: '❄️ 冰' },
-  { atk: '❄️ 冰', def: '🌀 风' },
-  { atk: '🌀 风', def: '🔥 火' },
-  { atk: '⚡ 雷', def: '💧 水' },
-  { atk: '💧 水', def: '🔥 火' },
-  { atk: '✨ 光', def: '🌑 暗' },
+const cityLevels = [
+  { level: 'Lv1', name: '小城', defense: '+0%', resource: '×1.0', garrison: '500', color: 'border-stone-300 bg-stone-50/30 dark:bg-stone-950/10', textColor: 'text-stone-500' },
+  { level: 'Lv2', name: '县城', defense: '+10%', resource: '×1.2', garrison: '1,000', color: 'border-green-300 bg-green-50/30 dark:bg-green-950/10', textColor: 'text-green-500' },
+  { level: 'Lv3', name: '郡城', defense: '+20%', resource: '×1.5', garrison: '3,000', color: 'border-blue-300 bg-blue-50/30 dark:bg-blue-950/10', textColor: 'text-blue-500' },
+  { level: 'Lv4', name: '州城', defense: '+35%', resource: '×2.0', garrison: '8,000', color: 'border-purple-300 bg-purple-50/30 dark:bg-purple-950/10', textColor: 'text-purple-500' },
+  { level: 'Lv5', name: '京城', defense: '+50%', resource: '×3.0', garrison: '20,000', color: 'border-amber-300 bg-amber-50/30 dark:bg-amber-950/10', textColor: 'text-amber-500' },
+]
+
+const marchTypes = [
+  { type: '进攻', en: 'Attack', color: 'bg-red-500', textColor: 'text-red-500', speed: '×1.0', food: '100%', desc: '攻打敌方城池' },
+  { type: '增援', en: 'Reinforce', color: 'bg-green-500', textColor: 'text-green-500', speed: '×1.2', food: '80%', desc: '增援友方城池' },
+  { type: '侦查', en: 'Scout', color: 'bg-blue-500', textColor: 'text-blue-500', speed: '×1.5', food: '30%', desc: '侦查城池情报' },
+  { type: '撤退', en: 'Retreat', color: 'bg-gray-500', textColor: 'text-gray-500', speed: '×1.3', food: '50%', desc: '撤回部队' },
+  { type: '迁城', en: 'Relocate', color: 'bg-orange-500', textColor: 'text-orange-500', speed: '×0.5', food: '200%', desc: '迁移主城' },
 ]
 
 export default function Home() {
@@ -115,43 +144,106 @@ export default function Home() {
           {/* ===== Hero ===== */}
           <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-card via-card to-card/80 p-8 md:p-12">
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
-              <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-gradient-to-br from-red-500/10 via-orange-500/5 to-transparent blur-3xl" />
-              <div className="absolute -bottom-24 -left-24 w-96 h-96 rounded-full bg-gradient-to-tr from-blue-500/10 via-purple-500/5 to-transparent blur-3xl" />
+              <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-transparent blur-3xl" />
+              <div className="absolute -bottom-24 -left-24 w-96 h-96 rounded-full bg-gradient-to-tr from-yellow-500/10 via-amber-500/5 to-transparent blur-3xl" />
             </div>
             <div className="relative z-10">
               <div className="flex items-center gap-3 mb-4">
-                <Badge variant="outline" className="border-red-500/30 text-red-600 dark:text-red-400 bg-red-500/5">Battle Service</Badge>
-                <Badge variant="outline" className="border-blue-500/30 text-blue-600 dark:text-blue-400 bg-blue-500/5">5v5 Auto</Badge>
+                <Badge variant="outline" className="border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-500/5">Map Service</Badge>
+                <Badge variant="outline" className="border-orange-500/30 text-orange-600 dark:text-orange-400 bg-orange-500/5">九州地图</Badge>
               </div>
               <h1 className="text-3xl md:text-4xl font-black">
-                <span className="bg-gradient-to-r from-red-500 via-orange-400 to-amber-500 bg-clip-text text-transparent">战斗系统微服务</span>
+                <span className="bg-gradient-to-r from-amber-500 via-orange-400 to-yellow-500 bg-clip-text text-transparent">地图系统微服务</span>
               </h1>
-              <p className="mt-2 text-lg text-muted-foreground font-medium">Battle Service — 回合制 5v5 自动战斗引擎</p>
+              <p className="mt-2 text-lg text-muted-foreground font-medium">Map Service — 九州地图 · 行军引擎 · 联盟领土</p>
               <p className="mt-3 text-sm text-muted-foreground/80 max-w-2xl leading-relaxed">
-                基于 Go 的完整回合制战斗引擎。5v5 自动战斗、技能释放、阵营克制、
-                Buff/Debuff 系统、暴击机制、战斗回放等核心功能。
+                基于 Go + Redis Stream 的高并发地图系统。九大区域、36 座城池、BFS 最短路径寻路、
+                异步行军引擎、联盟领土管理、城池占领与战斗记录等核心功能。
               </p>
               <div className="mt-6 flex flex-wrap gap-2">
-                {['5v5 回合制', '自动战斗 AI', '7 种技能', '阵营克制', 'Buff/Debuff',
-                  '暴击/浮动', '战斗回放', 'JSON 技能配置', 'PVE + PVP',
+                {['九大区域', '36座城池', 'Redis Stream行军', 'BFS寻路', '联盟领土', '城池占领', '高并发', '延迟模拟',
                 ].map((t) => (<Badge key={t} variant="secondary" className="text-xs px-2.5 py-1">{t}</Badge>))}
               </div>
             </div>
           </motion.section>
 
-          {/* ===== Battle Flow ===== */}
+          {/* ===== 九州地图总览 ===== */}
           <motion.section initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="space-y-4">
             <h2 className="text-2xl font-bold flex items-center gap-3">
-              <div className="w-1 h-8 rounded-full bg-gradient-to-b from-red-500 to-orange-600" />
-              战斗流程
+              <div className="w-1 h-8 rounded-full bg-gradient-to-b from-amber-500 to-orange-600" />
+              九州地图总览
             </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {nineProvinces.map((prov) => (
+                <Card key={prov.name} className={`border ${prov.color} hover:shadow-sm transition-shadow`}>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-sm font-bold flex items-center gap-2">
+                        <prov.icon className={`w-4 h-4 text-amber-600`} />
+                        {prov.name}
+                      </CardTitle>
+                      <Badge className={`text-[10px] ${prov.badgeColor}`}>{prov.terrain}</Badge>
+                    </div>
+                    <CardDescription className="text-xs">{prov.desc}</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center gap-2 text-xs">
+                      <Navigation className="w-3 h-3 text-muted-foreground" />
+                      <code className="text-muted-foreground font-mono">中心坐标 {prov.coords}</code>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </motion.section>
+
+          {/* ===== 城池等级系统 ===== */}
+          <motion.section initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="space-y-4">
+            <h2 className="text-2xl font-bold flex items-center gap-3">
+              <div className="w-1 h-8 rounded-full bg-gradient-to-b from-orange-500 to-red-600" />
+              城池等级系统
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              {cityLevels.map((city) => (
+                <Card key={city.level} className={`border ${city.color} hover:shadow-sm transition-shadow`}>
+                  <CardContent className="pt-4 pb-4 text-center">
+                    <Badge variant="outline" className={`text-xs font-bold mb-2 ${city.textColor}`}>{city.level}</Badge>
+                    <p className="font-bold text-sm">{city.name}</p>
+                    <div className="mt-2 space-y-1.5 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">防御加成</span>
+                        <span className="font-mono font-bold text-green-600">{city.defense}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">资源倍率</span>
+                        <span className="font-mono font-bold text-amber-600">{city.resource}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">最大驻军</span>
+                        <span className="font-mono font-bold">{city.garrison}</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </motion.section>
+
+          {/* ===== 行军系统 ===== */}
+          <motion.section initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="space-y-4">
+            <h2 className="text-2xl font-bold flex items-center gap-3">
+              <div className="w-1 h-8 rounded-full bg-gradient-to-b from-yellow-500 to-amber-600" />
+              行军系统
+            </h2>
+
+            {/* March Flow */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
               {[
-                { icon: Swords, title: '1. 组建阵容', desc: '5张卡牌上阵\n选择阵位 0~4', color: 'text-red-500' },
-                { icon: Target, title: '2. 速度排序', desc: '全体单位按速度降序\n±10% 随机浮动', color: 'text-blue-500' },
-                { icon: Zap, title: '3. 依次行动', desc: 'CD好→放技能\n否则普通攻击', color: 'text-amber-500' },
-                { icon: Flame, title: '4. 伤害结算', desc: '克制/暴击/浮动\nBuff/Debuff', color: 'text-orange-500' },
-                { icon: Crown, title: '5. 胜负判定', desc: '一方全灭即败\n最多30回合', color: 'text-emerald-500' },
+                { icon: Flag, title: '1. 发起行军', desc: '选择目标城池\n配置行军类型和兵力', color: 'text-amber-500' },
+                { icon: Route, title: '2. BFS寻路', desc: '广度优先搜索\n计算最短路径', color: 'text-orange-500' },
+                { icon: Timer, title: '3. Stream队列', desc: '推入 Redis Stream\n异步事件驱动', color: 'text-yellow-500' },
+                { icon: Clock, title: '4. 进度更新', desc: '5 Worker 并发消费\n实时更新行军进度', color: 'text-stone-500' },
+                { icon: Target, title: '5. 到达处理', desc: '战斗/增援/侦查\n结果写入 MySQL', color: 'text-red-500' },
               ].map((step) => (
                 <Card key={step.title} className="hover:shadow-sm transition-shadow">
                   <CardHeader className="pb-2"><CardTitle className="text-sm font-bold flex items-center gap-2"><step.icon className={`w-4 h-4 ${step.color}`} />{step.title}</CardTitle></CardHeader>
@@ -159,35 +251,122 @@ export default function Home() {
                 </Card>
               ))}
             </div>
+
+            {/* March Types */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+              {marchTypes.map((march) => (
+                <Card key={march.type} className="hover:shadow-sm transition-shadow">
+                  <CardContent className="pt-4 pb-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className={`w-3 h-3 rounded-full ${march.color}`} />
+                      <span className="font-bold text-sm">{march.type}</span>
+                      <span className="text-[10px] text-muted-foreground font-mono">{march.en}</span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mb-2">{march.desc}</p>
+                    <div className="flex items-center justify-between text-xs">
+                      <div>
+                        <span className="text-muted-foreground">速度 </span>
+                        <span className={`font-mono font-bold ${march.textColor}`}>{march.speed}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">粮草 </span>
+                        <span className="font-mono font-bold">{march.food}</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </motion.section>
 
-          {/* ===== Damage Formula ===== */}
+          {/* ===== Redis Stream 高并发架构 ===== */}
           <motion.section initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="space-y-4">
             <h2 className="text-2xl font-bold flex items-center gap-3">
-              <div className="w-1 h-8 rounded-full bg-gradient-to-b from-orange-500 to-red-600" />
-              伤害计算公式
+              <div className="w-1 h-8 rounded-full bg-gradient-to-b from-stone-500 to-amber-600" />
+              Redis Stream 高并发架构
             </h2>
-            <Card className="border-dashed bg-orange-50/30 dark:bg-orange-950/10">
-              <CardContent className="pt-6 space-y-4">
-                <div className="flex flex-wrap items-center gap-2 text-sm font-mono">
-                  <Badge variant="secondary" className="px-2 py-1">最终伤害</Badge>
-                  <span className="text-muted-foreground">=</span>
-                  <Badge className="px-2 py-1 bg-blue-500/10 text-blue-600 border-blue-200">ATK × 技能倍率</Badge>
-                  <span className="text-muted-foreground">−</span>
-                  <Badge className="px-2 py-1 bg-purple-500/10 text-purple-600 border-purple-200">DEF × 50%</Badge>
-                  <span className="text-muted-foreground">×</span>
-                  <Badge className="px-2 py-1 bg-amber-500/10 text-amber-600 border-amber-200">克制系数</Badge>
-                  <span className="text-muted-foreground">×</span>
-                  <Badge className="px-2 py-1 bg-red-500/10 text-red-600 border-red-200">暴击(1.5)</Badge>
-                  <span className="text-muted-foreground">×</span>
-                  <Badge className="px-2 py-1 bg-gray-500/10 text-gray-600 border-gray-200">随机(0.95~1.05)</Badge>
+            <Card className="border-dashed bg-amber-50/30 dark:bg-amber-950/10">
+              <CardContent className="pt-6 space-y-6">
+                {/* Architecture Diagram */}
+                <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-6">
+                  {/* March Producer */}
+                  <Card className="w-full md:w-auto border-amber-200 bg-amber-50/50 dark:bg-amber-950/20">
+                    <CardContent className="pt-4 pb-4 text-center px-6">
+                      <Flag className="w-6 h-6 text-amber-500 mx-auto mb-1.5" />
+                      <p className="text-xs font-bold">行军请求</p>
+                      <p className="text-[10px] text-muted-foreground">HTTP Handler</p>
+                    </CardContent>
+                  </Card>
+
+                  <ArrowRight className="w-5 h-5 text-amber-500 hidden md:block" />
+                  <ArrowRight className="w-5 h-5 text-amber-500 md:hidden rotate-90" />
+
+                  {/* Redis Stream */}
+                  <Card className="w-full md:w-auto border-red-200 bg-red-50/50 dark:bg-red-950/20">
+                    <CardContent className="pt-4 pb-4 text-center px-6">
+                      <Zap className="w-6 h-6 text-red-500 mx-auto mb-1.5" />
+                      <p className="text-xs font-bold">Redis Stream</p>
+                      <p className="text-[10px] text-muted-foreground">行军事件队列</p>
+                    </CardContent>
+                  </Card>
+
+                  <ArrowRight className="w-5 h-5 text-amber-500 hidden md:block" />
+                  <ArrowRight className="w-5 h-5 text-amber-500 md:hidden rotate-90" />
+
+                  {/* Worker Pool */}
+                  <div className="flex flex-col gap-2 w-full md:w-auto">
+                    <div className="flex gap-2">
+                      {[1, 2, 3].map((n) => (
+                        <Card key={n} className="flex-1 border-orange-200 bg-orange-50/50 dark:bg-orange-950/20">
+                          <CardContent className="pt-3 pb-3 text-center px-3">
+                            <Users className="w-4 h-4 text-orange-500 mx-auto mb-1" />
+                            <p className="text-[10px] font-bold">Worker {n}</p>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                    <div className="flex gap-2 justify-center">
+                      {[4, 5].map((n) => (
+                        <Card key={n} className="flex-1 max-w-[100px] border-orange-200 bg-orange-50/50 dark:bg-orange-950/20">
+                          <CardContent className="pt-3 pb-3 text-center px-2">
+                            <Users className="w-4 h-4 text-orange-500 mx-auto mb-1" />
+                            <p className="text-[10px] font-bold">Worker {n}</p>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-center text-muted-foreground">5 个消费者协程</p>
+                  </div>
+
+                  <ArrowRight className="w-5 h-5 text-amber-500 hidden md:block" />
+                  <ArrowRight className="w-5 h-5 text-amber-500 md:hidden rotate-90" />
+
+                  {/* Progress Updater + MySQL */}
+                  <div className="flex flex-col gap-2 w-full md:w-auto">
+                    <Card className="border-green-200 bg-green-50/50 dark:bg-green-950/20">
+                      <CardContent className="pt-3 pb-3 text-center px-4">
+                        <Clock className="w-5 h-5 text-green-500 mx-auto mb-1" />
+                        <p className="text-[10px] font-bold">进度更新协程</p>
+                      </CardContent>
+                    </Card>
+                    <Card className="border-blue-200 bg-blue-50/50 dark:bg-blue-950/20">
+                      <CardContent className="pt-3 pb-3 text-center px-4">
+                        <Database className="w-5 h-5 text-blue-500 mx-auto mb-1" />
+                        <p className="text-[10px] font-bold">MySQL 持久化</p>
+                      </CardContent>
+                    </Card>
+                  </div>
                 </div>
+
+                <Separator />
+
+                {/* Architecture Stats */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
                   {[
-                    { label: '克制伤害', value: '×1.3 (+30%)', color: 'text-green-500' },
-                    { label: '被克制伤害', value: '×0.7 (-30%)', color: 'text-red-500' },
-                    { label: '暴击率', value: '角色暴击率 + 5%', color: 'text-amber-500' },
-                    { label: '暴击伤害', value: '×150%', color: 'text-orange-500' },
+                    { label: 'Worker 数量', value: '5 协程', color: 'text-orange-500' },
+                    { label: '批量处理', value: '50 条/轮', color: 'text-amber-500' },
+                    { label: '到达检测', value: '并发处理', color: 'text-green-500' },
+                    { label: '事件队列', value: 'Redis Stream', color: 'text-red-500' },
                   ].map((item) => (
                     <div key={item.label} className="p-2.5 rounded-lg bg-card border">
                       <p className="font-semibold text-muted-foreground">{item.label}</p>
@@ -195,142 +374,45 @@ export default function Home() {
                     </div>
                   ))}
                 </div>
+
+                <CodeBlock code={`// Worker 消费者协程（5个并发）
+func (e *MarchEngine) worker(ctx context.Context, workerID int) {
+    for {
+        select {
+        case <-ctx.Done():
+            return
+        default:
+            // 1. 检查已到达行军 → 并发处理
+            arrived, _ := e.dao.ListArrivedMarches(ctx, 50)
+            var wg sync.WaitGroup
+            for _, m := range arrived {
+                wg.Add(1)
+                go func(march *MarchOrder) {
+                    defer wg.Done()
+                    e.ProcessArrival(ctx, march)
+                }(m)
+            }
+            wg.Wait()
+
+            // 2. 从 Redis Stream 消费新事件 (XREADGROUP)
+            streams, err := myredis.RDB.XReadGroup(ctx, &redis.XReadGroupArgs{
+                Group:    "march-workers",
+                Consumer: fmt.Sprintf("worker-%d", workerID),
+                Streams:  []string{"march:events", ">"},
+                Count:    10,
+                Block:    5 * time.Second,
+            })
+            // 3. 逐条处理
+            for _, stream := range streams {
+                for _, msg := range stream.Messages {
+                    e.handleMarchEvent(ctx, msg)
+                }
+            }
+        }
+    }
+}`} lang="go" filename="march_engine.go" />
               </CardContent>
             </Card>
-          </motion.section>
-
-          {/* ===== Faction Counter ===== */}
-          <motion.section initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="space-y-4">
-            <h2 className="text-2xl font-bold flex items-center gap-3">
-              <div className="w-1 h-8 rounded-full bg-gradient-to-b from-blue-500 to-indigo-600" />
-              阵营克制 + 元素克制
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm font-bold">⚔️ 阵营克制</CardTitle><CardDescription>魏→蜀→吴→魏 · 群雄特殊</CardDescription></CardHeader>
-                <CardContent>
-                  <div className="flex items-center justify-center gap-6">
-                    <div className="text-center space-y-1">
-                      <div className="w-14 h-14 rounded-xl bg-blue-500/20 border-2 border-blue-400 flex items-center justify-center text-lg font-bold text-blue-600">魏</div>
-                    </div>
-                    <ArrowRight className="w-5 h-5 text-green-500" />
-                    <div className="text-center space-y-1">
-                      <div className="w-14 h-14 rounded-xl bg-emerald-500/20 border-2 border-emerald-400 flex items-center justify-center text-lg font-bold text-emerald-600">蜀</div>
-                    </div>
-                    <ArrowRight className="w-5 h-5 text-green-500" />
-                    <div className="text-center space-y-1">
-                      <div className="w-14 h-14 rounded-xl bg-red-500/20 border-2 border-red-400 flex items-center justify-center text-lg font-bold text-red-600">吴</div>
-                    </div>
-                    <ArrowRight className="w-5 h-5 text-green-500" />
-                    <div className="text-center space-y-1">
-                      <div className="w-14 h-14 rounded-xl bg-blue-500/20 border-2 border-blue-400 flex items-center justify-center text-lg font-bold text-blue-600">魏</div>
-                    </div>
-                  </div>
-                  <p className="text-xs text-center text-muted-foreground mt-3">群雄与所有阵营形成半克制关系</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm font-bold">🔮 元素克制</CardTitle><CardDescription>火→冰→风→火 · 光↔暗</CardDescription></CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-3 gap-2">
-                    {elementRelations.map(({ atk, def }) => (
-                      <div key={atk} className="text-center p-2 rounded-lg bg-muted/50 text-xs">
-                        <p className="font-bold">{atk}</p>
-                        <p className="text-muted-foreground">→</p>
-                        <p className="font-bold">{def}</p>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-xs text-center text-muted-foreground mt-3">克制方伤害 +30%，被克制方伤害 -30%</p>
-                </CardContent>
-              </Card>
-            </div>
-          </motion.section>
-
-          {/* ===== Skills ===== */}
-          <motion.section initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="space-y-4">
-            <h2 className="text-2xl font-bold flex items-center gap-3">
-              <div className="w-1 h-8 rounded-full bg-gradient-to-b from-purple-500 to-pink-600" />
-              技能系统（JSON 可配置）
-            </h2>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-              {[
-                { name: '青龙偃月刀', char: '关羽', target: '全体敌人', ratio: '180%', type: '物理', cd: 4, buff: '降防15%×2回合', color: 'border-red-300 bg-red-50/30 dark:bg-red-950/10' },
-                { name: '龙胆枪法', char: '赵云', target: '单体', ratio: '350%', type: '物理', cd: 5, buff: '加攻20%×3回合', color: 'border-emerald-300 bg-emerald-50/30 dark:bg-emerald-950/10' },
-                { name: '火烧连营', char: '陆逊', target: '全体敌人', ratio: '200%', type: '法术', cd: 5, buff: '灼烧DOT 5%/×3回合', color: 'border-orange-300 bg-orange-50/30 dark:bg-orange-950/10' },
-                { name: '倾国倾城', char: '貂蝉', target: '敌方后排', ratio: '250%', type: '法术', cd: 4, buff: '降速20%×2回合', color: 'border-pink-300 bg-pink-50/30 dark:bg-pink-950/10' },
-                { name: '妙手回春', char: '华佗', target: '最低血量队友', ratio: '250%治疗', type: '治疗', cd: 3, buff: 'HOT 3%/×3回合', color: 'border-green-300 bg-green-50/30 dark:bg-green-950/10' },
-                { name: '天下无双', char: '吕布', target: '单体', ratio: '500%', type: '物理', cd: 6, buff: '加攻30%×2回合', color: 'border-amber-300 bg-amber-50/30 dark:bg-amber-950/10' },
-                { name: '铁壁防御', char: '曹操/张飞', target: '自身', ratio: '-', type: '防御', cd: 4, buff: '加防40%×2回合', color: 'border-blue-300 bg-blue-50/30 dark:bg-blue-950/10' },
-              ].map((skill) => (
-                <Card key={skill.name} className={`border ${skill.color}`}>
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-sm font-bold">{skill.name}</CardTitle>
-                      <Badge variant="outline" className="text-[10px]">CD:{skill.cd}</Badge>
-                    </div>
-                    <CardDescription className="text-xs">{skill.char} · {skill.target} · {skill.type}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center gap-2 text-xs">
-                      <Badge variant="secondary" className="font-bold">{skill.ratio}</Badge>
-                      <span className="text-muted-foreground">→</span>
-                      <span className="text-muted-foreground">{skill.buff}</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-
-            <CodeBlock code={`{
-  "id": 1001,
-  "name": "青龙偃月刀",
-  "type": "active",
-  "target_type": "enemy_all",     // single/enemy_all/ally_lowest_hp/self/enemy_back
-  "damage_type": "physical",      // physical/magical/true
-  "damage_ratio": 1.8,            // 180% 伤害倍率
-  "base_damage": 200,             // 固定伤害
-  "cd": 4,                        // 冷却回合
-  "buffs": [{
-    "type": "def_down",           // atk_up/def_up/spd_up/dot/hot/shield/stun
-    "value": 0.15,
-    "duration": 2,
-    "is_debuff": true
-  }]
-}`} lang="json" filename="skill_config.json" />
-          </motion.section>
-
-          {/* ===== Buff System ===== */}
-          <motion.section initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="space-y-4">
-            <h2 className="text-2xl font-bold flex items-center gap-3">
-              <div className="w-1 h-8 rounded-full bg-gradient-to-b from-green-500 to-emerald-600" />
-              Buff / Debuff 系统
-            </h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {[
-                { type: 'atk_up', label: '攻击提升', desc: 'ATK × (1 + value)', icon: TrendingUp, color: 'text-red-500 bg-red-50/30' },
-                { type: 'def_up', label: '防御提升', desc: 'DEF × (1 + value)', icon: ShieldHalf, color: 'text-blue-500 bg-blue-50/30' },
-                { type: 'spd_up', label: '速度提升', desc: 'SPD × (1 + value)', icon: Zap, color: 'text-amber-500 bg-amber-50/30' },
-                { type: 'dot', label: '持续伤害', desc: '每回合 MaxHP × value', icon: Flame, color: 'text-orange-500 bg-orange-50/30' },
-                { type: 'hot', label: '持续治疗', desc: '每回合回复 MaxHP × value', icon: Heart, color: 'text-green-500 bg-green-50/30' },
-                { type: 'atk_down', label: '攻击降低', desc: 'ATK × (1 - value)', icon: TrendingUp, color: 'text-red-300 bg-red-50/20' },
-                { type: 'def_down', label: '防御降低', desc: 'DEF × (1 - value)', icon: ShieldHalf, color: 'text-blue-300 bg-blue-50/20' },
-                { type: 'spd_down', label: '速度降低', desc: 'SPD × (1 - value)', icon: Zap, color: 'text-amber-300 bg-amber-50/20' },
-              ].map((buff) => (
-                <Card key={buff.type} className="hover:shadow-sm transition-shadow">
-                  <CardContent className="pt-4 pb-4">
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <buff.icon className={`w-4 h-4 ${buff.color} rounded`} />
-                      <code className="text-xs font-bold font-mono">{buff.type}</code>
-                    </div>
-                    <p className="text-xs font-semibold">{buff.label}</p>
-                    <p className="text-[11px] text-muted-foreground mt-0.5 font-mono">{buff.desc}</p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
           </motion.section>
 
           {/* ===== REST API ===== */}
@@ -340,11 +422,20 @@ export default function Home() {
               REST API
             </h2>
             {[
-              { method: 'POST', path: '/api/v1/battle/pve', auth: true, desc: 'PVE 战斗', color: 'bg-red-500',
-                req: `{\n  "type": "pve",\n  "stage_id": 1,\n  "team": [\n    { "card_id": 1001, "slot": 0 },\n    { "card_id": 1002, "slot": 1 },\n    { "card_id": 1005, "slot": 2 },\n    { "card_id": 1007, "slot": 3 },\n    { "card_id": 1003, "slot": 4 }\n  ]\n}`,
-                res: `{\n  "code": 0,\n  "data": {\n    "battle_id": "a1b2c3d4-1234567",\n    "winner": 1,\n    "turn_count": 8,\n    "turns": [{ "turn_number": 1, "actions": [...] }],\n    "units": [\n      { "unit_id": 1, "name": "关羽", "alive": true, "hp_remain": 1200, "total_damage": 8500, "kills": 2 }\n    ],\n    "duration_ms": 12\n  }\n}` },
-              { method: 'GET', path: '/api/v1/battle/replay/:id', auth: true, desc: '战斗回放', color: 'bg-blue-500', res: `{\n  "code": 0,\n  "data": {\n    "battle_id": "a1b2c3d4",\n    "turns": [{ "turn_number": 1, "actions": [\n      {\n        "actor_id": 1, "actor_name": "关羽",\n        "target_id": 6, "target_name": "吕布",\n        "action_type": "skill", "skill_name": "青龙偃月刀",\n        "damage": 1520, "is_crit": true, "is_counter": true,\n        "hp_after": 3980\n      }\n    ]}]\n  }\n}` },
-              { method: 'GET', path: '/api/v1/battle/history?limit=20', auth: true, desc: '战斗历史', color: 'bg-amber-500', res: `{\n  "code": 0,\n  "data": [{\n    "battle_id": "a1b2c3d4",\n    "attacker_id": 10001,\n    "attacker_win": true,\n    "type": "pve",\n    "turn_count": 8,\n    "duration_ms": 12\n  }]\n}` },
+              { method: 'GET', path: '/api/v1/map/overview', auth: false, desc: '地图总览', color: 'bg-blue-500',
+                res: `{\n  "code": 0,\n  "data": {\n    "regions": [\n      { "region_id": 1, "name": "冀州", "terrain": "平原", "city_count": 4 },\n      { "region_id": 2, "name": "兖州", "terrain": "平原", "city_count": 4 }\n    ],\n    "total_cities": 36,\n    "occupied_cities": 15\n  }\n}` },
+              { method: 'POST', path: '/api/v1/map/march', auth: true, desc: '发起行军', color: 'bg-red-500',
+                req: `{\n  "source_city_id": 1,\n  "target_city_id": 5,\n  "march_type": 1,\n  "army_power": 5000\n}`,
+                res: `{\n  "code": 0,\n  "data": {\n    "march_id": "march_a1b2c3d4",\n    "status": "marching",\n    "path": [1, 2, 3, 5],\n    "distance": 3,\n    "speed_multiplier": 1.0,\n    "march_duration_secs": 10800,\n    "arrive_time": "2025-01-15T10:30:00Z",\n    "army_power": 5000,\n    "food_cost": 500\n  }\n}` },
+              { method: 'GET', path: '/api/v1/map/march/:marchId/progress', auth: true, desc: '行军进度', color: 'bg-amber-500',
+                res: `{\n  "code": 0,\n  "data": {\n    "march_id": "march_a1b2c3d4",\n    "status": "marching",\n    "progress": 0.65,\n    "remain_secs": 3780,\n    "current_path_index": 2,\n    "arrive_time": "2025-01-15T10:30:00Z"\n  }\n}` },
+              { method: 'POST', path: '/api/v1/map/march/:marchId/recall', auth: true, desc: '撤回行军', color: 'bg-gray-500',
+                req: `{\n  "march_id": "march_a1b2c3d4"\n}`,
+                res: `{\n  "code": 0,\n  "data": {\n    "march_id": "march_a1b2c3d4",\n    "status": "recalled",\n    "recalled_army": 5000,\n    "refund_food": 250\n  }\n}` },
+              { method: 'GET', path: '/api/v1/map/city/:id', auth: false, desc: '城池详情', color: 'bg-green-500',
+                res: `{\n  "code": 0,\n  "data": {\n    "city_id": 5,\n    "name": "许昌",\n    "level": 4,\n    "region_id": 2,\n    "region_name": "豫州",\n    "coordinates": { "x": 150, "y": 180 },\n    "terrain": "平原",\n    "defense_bonus": 0.35,\n    "resource_multiplier": 2.0,\n    "max_garrison": 8000,\n    "connections": [3, 6, 8, 11],\n    "occupation": {\n      "alliance_id": 100,\n      "alliance_name": "龙图阁",\n      "owner_id": 5001,\n      "garrison": 3000,\n      "wall_hp": 15000,\n      "wall_max_hp": 20000\n    }\n  }\n}` },
+              { method: 'GET', path: '/api/v1/map/alliance/:allianceId/territory', auth: true, desc: '联盟领土', color: 'bg-purple-500',
+                res: `{\n  "code": 0,\n  "data": {\n    "alliance_id": 100,\n    "alliance_name": "龙图阁",\n    "total_cities": 8,\n    "territories": [\n      {\n        "city_id": 5, "city_name": "许昌", "level": 4,\n        "garrison": 3000, "wall_hp": 15000\n      }\n    ],\n    "territory_buffs": {\n      "attack_bonus": 0.05,\n      "defense_bonus": 0.08,\n      "resource_bonus": 0.10\n    },\n    "total_resource_bonus": 0.10\n  }\n}` },
             ].map((api) => (
               <Collapsible key={api.path}>
                 <Card className="hover:shadow-sm transition-shadow">
@@ -353,7 +444,7 @@ export default function Home() {
                       <div className="flex items-center gap-3 flex-wrap">
                         <span className={`px-2.5 py-1 rounded-md text-white text-xs font-bold font-mono ${api.color}`}>{api.method}</span>
                         <code className="text-sm font-mono font-semibold">{api.path}</code>
-                        <Badge variant="outline" className="text-[10px] gap-1 border-amber-300 text-amber-600 dark:text-amber-400"><Shield className="w-3 h-3" />JWT</Badge>
+                        {api.auth && <Badge variant="outline" className="text-[10px] gap-1 border-amber-300 text-amber-600 dark:text-amber-400"><Shield className="w-3 h-3" />JWT</Badge>}
                         <span className="text-xs text-muted-foreground ml-auto">{api.desc}</span>
                         <ChevronDown className="w-4 h-4 text-muted-foreground" />
                       </div>
@@ -376,17 +467,20 @@ export default function Home() {
           <motion.section initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="space-y-4">
             <h2 className="text-2xl font-bold flex items-center gap-3">
               <div className="w-1 h-8 rounded-full bg-gradient-to-b from-amber-500 to-orange-600" />
-              数据库（3 张表）
+              数据库（6 张表）
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {[
-                { name: 'battle_records', desc: '战斗记录表', fields: ['battle_id (唯一)', 'attacker_id/defender_id', 'attacker_win (BOOL)', 'type (pve/pvp/guild_war)', 'turn_count', 'result_json (完整回放)', 'duration_ms'] },
-                { name: 'skill_definitions', desc: '技能定义表', fields: ['name (唯一)', 'type (normal/active/passive)', 'target_type (5种)', 'damage_ratio / base_damage', 'cd', 'buffs_json', 'special (heal/shield)'] },
-                { name: 'stage_definitions', desc: 'PVE关卡配置', fields: ['chapter + stage_num (唯一)', 'difficulty (1~5)', 'enemy_team_json', 'rewards_json', 'first_reward_json'] },
+                { name: 'map_regions', desc: '九大区域', fields: ['region_id (主键)', 'name (冀州/兖州/...)', 'terrain (地形类型)', 'description (区域描述)', 'center_x / center_y', 'city_count'] },
+                { name: 'map_cities', desc: '36座城池', fields: ['city_id (主键)', 'region_id → map_regions', 'name (城池名称)', 'level (1~5)', 'coord_x / coord_y', 'terrain / defense_bonus', 'resource_multiplier', 'connections (JSON邻接)'] },
+                { name: 'city_occupations', desc: '占领状态', fields: ['id (主键)', 'city_id → map_cities', 'alliance_id (联盟)', 'owner_id (城主)', 'garrison (驻军)', 'wall_hp / wall_max_hp', 'occupied_at'] },
+                { name: 'march_orders', desc: '行军令', fields: ['march_id (UUID主键)', 'user_id (发起者)', 'source_city / target_city', 'march_type (5种)', 'army_power / food_cost', 'path_json (BFS路径)', 'speed_multiplier', 'duration_secs / progress', 'status / arrive_time'] },
+                { name: 'alliance_territories', desc: '联盟领土汇总', fields: ['id (主键)', 'alliance_id (联盟)', 'city_count (领土数)', 'attack_bonus / defense_bonus', 'resource_bonus', 'updated_at'] },
+                { name: 'city_battle_logs', desc: '城池战斗记录', fields: ['id (主键)', 'city_id (城池)', 'attacker_alliance', 'defender_alliance', 'attacker_power / defender_power', 'result (胜/负/平)', 'detail_json', 'created_at'] },
               ].map((t) => (
                 <Card key={t.name}>
                   <CardHeader className="pb-2"><CardTitle className="text-sm font-bold flex items-center gap-2"><Database className="w-4 h-4 text-muted-foreground" /><code className="font-mono">{t.name}</code></CardTitle><CardDescription className="text-xs">{t.desc}</CardDescription></CardHeader>
-                  <CardContent><ul className="space-y-1">{t.fields.map((f) => (<li key={f} className="text-[11px] font-mono text-muted-foreground flex items-center gap-2"><div className="w-1 h-1 rounded-full bg-current" />{f}</li>))}</ul></CardContent>
+                  <CardContent><ul className="space-y-1">{t.fields.map((f) => (<li key={f} className="text-[11px] font-mono text-muted-foreground flex items-center gap-2"><div className="w-1 h-1 rounded-full bg-current flex-shrink-0" />{f}</li>))}</ul></CardContent>
                 </Card>
               ))}
             </div>
@@ -395,12 +489,12 @@ export default function Home() {
           {/* ===== Source Code ===== */}
           <motion.section initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="space-y-4">
             <h2 className="text-2xl font-bold flex items-center gap-3">
-              <div className="w-1 h-8 rounded-full bg-gradient-to-b from-violet-500 to-purple-600" />
-              核心源码（12 个文件）
+              <div className="w-1 h-8 rounded-full bg-gradient-to-b from-amber-600 to-stone-600" />
+              核心源码（14 个文件）
             </h2>
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
               <Card className="lg:col-span-1 p-0 overflow-hidden">
-                <div className="p-3 border-b bg-muted/30"><p className="text-xs font-semibold flex items-center gap-1.5"><Swords className="w-3.5 h-3.5 text-red-500" />battle-service/</p></div>
+                <div className="p-3 border-b bg-muted/30"><p className="text-xs font-semibold flex items-center gap-1.5"><Map className="w-3.5 h-3.5 text-amber-500" />map-service/</p></div>
                 <ScrollArea className="h-[400px]"><div className="p-1 space-y-0.5">{sourceFiles.map((f, i) => (
                   <button key={f.name} onClick={() => setActiveTab(i)} className={`w-full text-left px-3 py-2 rounded-md text-xs flex items-center gap-2 transition-colors ${activeTab === i ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}>
                     <FileCode className={`w-3.5 h-3.5 flex-shrink-0 ${activeTab === i ? 'text-primary-foreground' : 'text-muted-foreground'}`} />
@@ -415,7 +509,15 @@ export default function Home() {
                   <Badge variant="outline" className="text-[10px]">{sourceFiles[activeTab].desc}</Badge>
                 </div>
                 <ScrollArea className="h-[400px]"><div className="p-4">
-                  <CodeBlock code={activeTab === 1 ? engineCode : '// 完整源码位于 battle-service/ 目录\n// 12 个文件，包含战斗引擎核心实现\n// battle_engine.go 包含伤害计算、技能释放、Buff系统等'} lang={activeTab >= 6 ? 'sql' : activeTab === 7 ? 'json' : 'go'} filename={sourceFiles[activeTab].name} />
+                  <CodeBlock code={
+                    activeTab === 1 ? engineCode
+                    : activeTab === 7 ? `-- 九州地图数据库建表脚本\n-- 6 张表：区域、城池、占领、行军、联盟领土、战斗记录\n\nCREATE TABLE map_regions (\n  region_id INT PRIMARY KEY AUTO_INCREMENT,\n  name VARCHAR(20) NOT NULL COMMENT '区域名称',\n  terrain VARCHAR(20) NOT NULL COMMENT '地形类型',\n  description TEXT COMMENT '区域描述',\n  center_x INT NOT NULL,\n  center_y INT NOT NULL,\n  city_count INT DEFAULT 0\n);\n\nCREATE TABLE map_cities (\n  city_id INT PRIMARY KEY AUTO_INCREMENT,\n  region_id INT NOT NULL,\n  name VARCHAR(30) NOT NULL,\n  level TINYINT DEFAULT 1,\n  coord_x INT NOT NULL,\n  coord_y INT NOT NULL,\n  terrain VARCHAR(20),\n  defense_bonus DECIMAL(3,2) DEFAULT 0,\n  resource_multiplier DECIMAL(3,1) DEFAULT 1.0,\n  connections JSON,\n  FOREIGN KEY (region_id) REFERENCES map_regions(region_id)\n);\n\nCREATE TABLE city_occupations (\n  id BIGINT PRIMARY KEY AUTO_INCREMENT,\n  city_id INT NOT NULL,\n  alliance_id BIGINT,\n  owner_id BIGINT,\n  garrison INT DEFAULT 0,\n  wall_hp INT DEFAULT 0,\n  wall_max_hp INT DEFAULT 0,\n  occupied_at DATETIME,\n  FOREIGN KEY (city_id) REFERENCES map_cities(city_id)\n);\n\nCREATE TABLE march_orders (\n  march_id VARCHAR(64) PRIMARY KEY,\n  user_id BIGINT NOT NULL,\n  source_city_id INT,\n  target_city_id INT,\n  march_type TINYINT NOT NULL,\n  army_power INT DEFAULT 0,\n  food_cost INT DEFAULT 0,\n  path_json JSON,\n  speed_multiplier DECIMAL(3,1) DEFAULT 1.0,\n  duration_secs INT DEFAULT 0,\n  progress DECIMAL(5,4) DEFAULT 0,\n  status VARCHAR(20) DEFAULT 'marching',\n  arrive_time DATETIME,\n  created_at DATETIME DEFAULT NOW()\n);\n\nCREATE TABLE alliance_territories (\n  id BIGINT PRIMARY KEY AUTO_INCREMENT,\n  alliance_id BIGINT NOT NULL,\n  city_count INT DEFAULT 0,\n  attack_bonus DECIMAL(4,3) DEFAULT 0,\n  defense_bonus DECIMAL(4,3) DEFAULT 0,\n  resource_bonus DECIMAL(4,3) DEFAULT 0,\n  updated_at DATETIME DEFAULT NOW()\n);\n\nCREATE TABLE city_battle_logs (\n  id BIGINT PRIMARY KEY AUTO_INCREMENT,\n  city_id INT NOT NULL,\n  attacker_alliance BIGINT,\n  defender_alliance BIGINT,\n  attacker_power INT DEFAULT 0,\n  defender_power INT DEFAULT 0,\n  result VARCHAR(10),\n  detail_json JSON,\n  created_at DATETIME DEFAULT NOW()\n);`
+                    : activeTab === 8 ? `{\n  "regions": [\n    { "id": 1, "name": "冀州", "terrain": "平原", "center": [180, 60] },\n    { "id": 2, "name": "兖州", "terrain": "平原", "center": [160, 120] },\n    { "id": 3, "name": "青州", "terrain": "沿海", "center": [220, 100] },\n    { "id": 4, "name": "徐州", "terrain": "平原", "center": [210, 160] },\n    { "id": 5, "name": "豫州", "terrain": "平原", "center": [150, 180] },\n    { "id": 6, "name": "荆州", "terrain": "丘陵", "center": [130, 250] },\n    { "id": 7, "name": "扬州", "terrain": "水乡", "center": [220, 230] },\n    { "id": 8, "name": "梁州", "terrain": "山地", "center": [80, 200] },\n    { "id": 9, "name": "雍州", "terrain": "荒漠", "center": [60, 100] }\n  ],\n  "march_types": {\n    "1": { "name": "进攻", "speed": 1.0, "food_ratio": 1.0 },\n    "2": { "name": "增援", "speed": 1.2, "food_ratio": 0.8 },\n    "3": { "name": "侦查", "speed": 1.5, "food_ratio": 0.3 },\n    "4": { "name": "撤退", "speed": 1.3, "food_ratio": 0.5 },\n    "5": { "name": "迁城", "speed": 0.5, "food_ratio": 2.0 }\n  },\n  "city_levels": {\n    "1": { "name": "小城", "defense": 0, "resource": 1.0, "garrison": 500 },\n    "2": { "name": "县城", "defense": 0.1, "resource": 1.2, "garrison": 1000 },\n    "3": { "name": "郡城", "defense": 0.2, "resource": 1.5, "garrison": 3000 },\n    "4": { "name": "州城", "defense": 0.35, "resource": 2.0, "garrison": 8000 },\n    "5": { "name": "京城", "defense": 0.5, "resource": 3.0, "garrison": 20000 }\n  },\n  "worker_pool_size": 5,\n  "max_active_per_user": 5,\n  "base_march_speed": 3.0\n}`
+                    : activeTab === 10 ? `server:\n  port: 9004\n  mode: release\n\ndatabase:\n  host: 127.0.0.1\n  port: 3306\n  user: root\n  password: ""\n  dbname: jiuzhou_map\n  max_open_conns: 20\n  max_idle_conns: 10\n\nredis:\n  addr: 127.0.0.1:6379\n  password: ""\n  db: 0\n  pool_size: 10\n\njwt:\n  secret: "your-jwt-secret-key"\n  expire_hours: 24\n\nmarch_engine:\n  worker_pool_size: 5\n  max_active_per_user: 5\n  base_march_speed: 3.0\n  arrive_check_interval: 1s\n  progress_update_interval: 5s\n  batch_size: 50\n\nlog:\n  level: info\n  file: logs/map-service.log`
+                    : `// 完整源码位于 map-service/ 目录\n// 14 个文件，包含地图引擎核心实现\n// march_engine.go 包含 BFS 寻路、Redis Stream 消费、行军处理等`
+                  } lang={
+                    activeTab === 7 ? 'sql' : activeTab === 8 ? 'json' : activeTab === 10 ? 'yaml' : 'go'
+                  } filename={sourceFiles[activeTab].name} />
                 </div></ScrollArea>
               </Card>
             </div>
@@ -428,9 +530,9 @@ export default function Home() {
               快速启动
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-bold flex items-center gap-2"><span className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold">1</span>建库建表</CardTitle></CardHeader><CardContent><CodeBlock code={`mysql -u root -p < battle-service/docs/schema.sql`} lang="bash" filename="terminal" /></CardContent></Card>
-              <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-bold flex items-center gap-2"><span className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold">2</span>导入技能+关卡</CardTitle></CardHeader><CardContent><CodeBlock code={`INSERT INTO skill_definitions (name, type, target_type, damage_ratio, cd)\nVALUES ('青龙偃月刀', 'active', 'enemy_all', 1.80, 4);\n\nINSERT INTO stage_definitions (chapter, stage_num, name, enemy_team_json)\nVALUES (1, 1, '黄巾之乱', '[{"card_id":1006,"slot":0,"level":5,"star":1},...]');`} lang="sql" filename="mysql" /></CardContent></Card>
-              <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-bold flex items-center gap-2"><span className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold">3</span>启动服务</CardTitle></CardHeader><CardContent><CodeBlock code={`cd battle-service\ngo mod tidy\ngo run cmd/main.go\n# → http://localhost:9002`} lang="bash" filename="terminal" /></CardContent></Card>
+              <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-bold flex items-center gap-2"><span className="w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center text-xs font-bold">1</span>建库建表</CardTitle></CardHeader><CardContent><CodeBlock code={`mysql -u root -p < map-service/docs/schema.sql\n\n# 创建数据库 + 6 张表\n# map_regions, map_cities, city_occupations\n# march_orders, alliance_territories, city_battle_logs`} lang="bash" filename="terminal" /></CardContent></Card>
+              <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-bold flex items-center gap-2"><span className="w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center text-xs font-bold">2</span>导入初始数据</CardTitle></CardHeader><CardContent><CodeBlock code={`# 导入 9 大区域 + 36 座城池\nmysql -u root -p jiuzhou_map \\\n  < map-service/docs/init_data.sql\n\n# 导入地图配置（城池等级/行军类型）\ncp map-service/config/map_config.json ./`} lang="bash" filename="terminal" /></CardContent></Card>
+              <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-bold flex items-center gap-2"><span className="w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center text-xs font-bold">3</span>启动服务</CardTitle></CardHeader><CardContent><CodeBlock code={`cd map-service\ngo mod tidy\ngo run cmd/main.go\n# → http://localhost:9004\n# 行军引擎启动 (5 Workers)\n# Redis Stream 消费就绪`} lang="bash" filename="terminal" /></CardContent></Card>
             </div>
           </motion.section>
 
@@ -438,12 +540,12 @@ export default function Home() {
 
         <footer className="border-t bg-muted/30">
           <div className="max-w-7xl mx-auto px-4 py-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground">
-            <p>九州争鼎 — 战斗系统微服务 · Go + 回合制引擎 + 技能系统</p>
+            <p>九州争鼎 — 地图系统微服务 · Go + Redis Stream + BFS寻路</p>
             <div className="flex items-center gap-4">
-              <span className="flex items-center gap-1"><Swords className="w-3 h-3" />5v5</span>
-              <span className="flex items-center gap-1"><Target className="w-3 h-3" />30回合</span>
-              <span className="flex items-center gap-1"><RotateCcw className="w-3 h-3" />CD系统</span>
-              <span className="flex items-center gap-1"><Server className="w-3 h-3" />Port 9002</span>
+              <span className="flex items-center gap-1"><Map className="w-3 h-3" />Map</span>
+              <span className="flex items-center gap-1"><Zap className="w-3 h-3" />Redis Stream</span>
+              <span className="flex items-center gap-1"><Route className="w-3 h-3" />BFS</span>
+              <span className="flex items-center gap-1"><Server className="w-3 h-3" />Port 9004</span>
             </div>
           </div>
         </footer>

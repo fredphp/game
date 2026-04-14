@@ -1,0 +1,37 @@
+server:
+  host: "0.0.0.0"
+  port: 9004
+  mode: "debug"
+
+mysql:
+  host: "127.0.0.1"
+  port: 3306
+  user: "root"
+  password: "123456"
+  database: "jiuzhou"
+  charset: "utf8mb4"
+  max_idle_conns: 10
+  max_open_conns: 100
+  conn_max_lifetime: 3600
+
+redis:
+  host: "127.0.0.1"
+  port: 6379
+  password: ""
+  db: 1
+  pool_size: 30
+
+jwt:
+  secret: "jiuzhou-map-service-jwt-secret-key-2024"
+  issuer: "jiuzhou-server"
+  access_ttl: 7200
+  refresh_ttl: 604800
+
+march:
+  # 行军引擎配置
+  consumer_workers: 5          # 消费者协程数
+  tick_interval_ms: 1000       # 轮询间隔(毫秒)
+  max_active_march_per_user: 3 # 单用户最大同时行军数
+  recall_refund_rate: 0.8      # 撤回资源返还比例
+  stream_key: "map:march:stream"
+  consumer_group: "map-service"

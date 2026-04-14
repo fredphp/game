@@ -1,0 +1,32 @@
+{
+  "map_settings": {
+    "world_size": { "width": 500, "height": 500 },
+    "max_city_level": 5,
+    "march_speed_base": 10,
+    "march_speed_per_level": 2,
+    "scout_range": 3,
+    "neutral_defense_multiplier": 0.5,
+    "capital_extra_defense": 200
+  },
+  "city_level_config": [
+    { "level": 1, "name": "小城", "defense_bonus": 0,   "resource_multiplier": 1.0, "max_garrison": 1000  },
+    { "level": 2, "name": "县城", "defense_bonus": 50,  "resource_multiplier": 1.5, "max_garrison": 3000  },
+    { "level": 3, "name": "郡城", "defense_bonus": 150, "resource_multiplier": 2.0, "max_garrison": 8000  },
+    { "level": 4, "name": "州城", "defense_bonus": 300, "resource_multiplier": 3.0, "max_garrison": 15000 },
+    { "level": 5, "name": "京城", "defense_bonus": 500, "resource_multiplier": 5.0, "max_garrison": 30000 }
+  ],
+  "march_type_config": [
+    { "type": 1, "name": "进攻", "speed_multiplier": 1.0, "food_cost_per_unit": 2, "can_recall": true,  "recall_before_arrival": true  },
+    { "type": 2, "name": "增援", "speed_multiplier": 1.2, "food_cost_per_unit": 1, "can_recall": true,  "recall_before_arrival": true  },
+    { "type": 3, "name": "侦查", "speed_multiplier": 1.5, "food_cost_per_unit": 0, "can_recall": false, "recall_before_arrival": false },
+    { "type": 4, "name": "撤退", "speed_multiplier": 0.8, "food_cost_per_unit": 1, "can_recall": false, "recall_before_arrival": false },
+    { "type": 5, "name": "迁城", "speed_multiplier": 0.5, "food_cost_per_unit": 5, "can_recall": false, "recall_before_arrival": false }
+  ],
+  "alliance_territory_buffs": [
+    { "min_cities": 3,  "level": 1, "name": "初露锋芒", "buffs": { "attack": 0.05, "defense": 0.05 } },
+    { "min_cities": 8,  "level": 2, "name": "雄踞一方", "buffs": { "attack": 0.10, "defense": 0.10, "resource": 0.10 } },
+    { "min_cities": 15, "level": 3, "name": "诸侯争霸", "buffs": { "attack": 0.15, "defense": 0.15, "resource": 0.20, "march_speed": 0.10 } },
+    { "min_cities": 25, "level": 4, "name": "问鼎中原", "buffs": { "attack": 0.20, "defense": 0.20, "resource": 0.30, "march_speed": 0.15 } },
+    { "min_cities": 36, "level": 5, "name": "一统九州", "buffs": { "attack": 0.30, "defense": 0.30, "resource": 0.50, "march_speed": 0.20 } }
+  ]
+}
