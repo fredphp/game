@@ -72,6 +72,46 @@ export interface TutorialStep {
 
 export type GameView = 'main-city' | 'gacha' | 'heroes' | 'battle' | 'shop' | 'more'
 
+// ==================== 运营系统类型 ====================
+export interface BattlePassSeason {
+  id: number; seasonKey: string; title: string; description: string;
+  startTime: string; endTime: string; price: number; premiumPrice: number;
+  isPremium: boolean; status: number; currentLevel: number; totalExp: number;
+}
+
+export interface BattlePassReward {
+  level: number; requiredExp: number; freeRewards: Record<string, number>;
+  premiumRewards: Record<string, number>; title: string; iconType: string;
+}
+
+export interface GameActivity {
+  id: number; name: string; type: string; typeName: string;
+  description: string; startTime: string; endTime: string;
+  status: string; rewards: string; tasks: GameActivityTask[];
+  participants: number; completionRate: number;
+}
+
+export interface GameActivityTask {
+  id: number; title: string; description: string; taskType: string;
+  targetType: string; targetCount: number; progress: number; targetId: string;
+  rewards: string; status: number;
+}
+
+export interface GameLimitedPool {
+  id: number; name: string; type: string; description: string;
+  bannerUrl: string; startTime: string; endTime: string;
+  ssrRate: number; srRate: number; rRate: number; pityCount: number;
+  hardPityCount: number; upHeroId: number; upRate: number;
+  totalDraws: number; todayDraws: number; status: number;
+}
+
+export interface GameMail {
+  id: number; mailUid: string; senderType: string; senderName: string;
+  senderId: number; receiverId: number; category: string; title: string; content: string;
+  attachments: string[]; isRead: boolean; isClaimed: boolean;
+  expireAt: string | null; createdAt: string;
+}
+
 // ==================== Mock Data ====================
 const MOCK_PLAYER: PlayerData = {
   name: '九州·曹操',
@@ -188,6 +228,27 @@ interface GameState {
 
   staminaTimer: number
   tickStamina: () => void
+
+  // Operations
+  battlePassSeasons: BattlePassSeason[]
+  currentBattlePass: BattlePassSeason | null
+  currentBPPremium: boolean
+  battlePassLevel: number
+  battlePassExp: number
+  battlePassClaimed: number[]
+  activities: GameActivity[]
+  limitedPools: GameLimitedPool[]
+  mails: GameMail[]
+  unreadMailCount: number
+  rewardMailCount: number
+  setBattlePassPremium: (v: boolean) => void
+  addBattlePassExp: (exp: number) => void
+  claimBPReward: (level: number) => void
+  readMail: (mailId: number) => void
+  claimMailReward: (mailId: number) => void
+  deleteMail: (mailId: number) => void
+  batchReadMails: (mailIds: number[]) => void
+  claimActivityReward: (activityId: number, taskId: number) => void
 }
 
 export const useGameStore = create<GameState>((set, get) => ({
@@ -311,6 +372,35 @@ export const useGameStore = create<GameState>((set, get) => ({
     setTimeout(() => set({ notification: null }), 2500)
   },
 
+  battlePassSeasons: [
+    { id: 1, seasonKey: 'S2025S3', title: '龙吟九霄', description: '第三赛季·龙吟九霄战令', startTime: '2025-07-01', endTime: '2025-09-30', price: 0, premiumPrice: 680, isPremium: false, status: 1, currentLevel: 18, totalExp: 60000 },
+    { id: 2, seasonKey: 'S2025S4', title: '凤鸣天下', description: '第四赛季即将开放', startTime: '2025-10-01', endTime: '2025-12-31', price: 0, premiumPrice: 980, isPremium: false, status: 0, currentLevel: 0, totalExp: 50000 },
+  ],
+  currentBattlePass: null,
+  currentBPPremium: false,
+  battlePassLevel: 18,
+  battlePassExp: 3200,
+  battlePassClaimed: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18],
+  activities: [
+    { id: 1, name: '夏日抽卡狂欢', type: 'gacha', typeName: '抽卡活动', description: '限定UP卡池开启', startTime: '2025-07-01', endTime: '2025-07-31', status: 'active', rewards: '钻石×10000', participants: 45600, completionRate: 65.3, tasks: [
+      { id: 1, title: '累计抽卡30次', description: '在活动卡池中累计抽卡30次', taskType: 'gacha', targetType: 'count', targetCount: 30, progress: 18, targetId: '', rewards: '{"diamond":500}', status: 1 },
+      { id: 2, title: '获得SSR武将', description: '在活动中抽到SSR武将', taskType: 'gacha', targetType: 'hero', targetCount: 1, progress: 0, targetId: '', rewards: '{"diamond":2000}', status: 1 },
+    ] },
+  ],
+  limitedPools: [
+    { id: 1, name: '龙吟限定UP池', type: 'limited', description: 'SSR关羽限定UP', bannerUrl: '/game-city-banner.png', startTime: '2025-07-01', endTime: '2025-07-31', ssrRate: 2.0, srRate: 10.0, rRate: 88.0, pityCount: 50, hardPityCount: 80, upHeroId: 1, upRate: 0.5, totalDraws: 125600, todayDraws: 15200, status: 1 },
+    { id: 2, name: '群雄逐鹿UP池', type: 'rateup', description: 'SR赵云UP', startTime: '2025-07-15', endTime: '2025-08-15', ssrRate: 2.0, srRate: 10.0, rRate: 88.0, pityCount: 50, hardPityCount: 80, upHeroId: 3, upRate: 0.5, totalDraws: 43200, todayDraws: 5600, status: 1 },
+  ],
+  mails: [
+    { id: 1, mailUid: 'M001', senderType: 'system', senderId: 0, senderName: '系统', receiverId: 10001, category: 'reward', title: '签到奖励', content: '恭喜获得每日签到奖励：钻石×50', attachments: [], isRead: false, isClaimed: false, expireAt: '2025-08-01', createdAt: '2025-07-10 10:00:00' },
+    { id: 2, mailUid: 'M002', senderType: 'activity', senderId: 0, senderName: '活动', receiverId: 10001, category: 'reward', title: '活动奖励', content: '恭喜完成活动任务，获得奖励：SSR碎片×5', attachments: [], isRead: false, isClaimed: false, expireAt: '2025-08-15', createdAt: '2025-07-10 14:00:00' },
+    { id: 3, mailUid: 'M003', senderType: 'system', senderId: 0, senderName: '系统', receiverId: 10001, category: 'notification', title: '维护公告', content: '服务器将于今晚22:00-23:00进行维护更新，请提前保存进度。', attachments: [], isRead: true, isClaimed: false, expireAt: '2025-07-15', createdAt: '2025-07-09 18:00:00' },
+    { id: 4, mailUid: 'M004', senderType: 'guild', senderId: 100, senderName: '龙腾天下', receiverId: 10001, category: 'social', title: '联盟邀请', content: '欢迎加入联盟龙腾天下！我们是服务器排名第一的联盟，一起征战九州！', attachments: [], isRead: false, isClaimed: false, expireAt: null, createdAt: '2025-07-08 20:00:00' },
+    { id: 5, mailUid: 'M005', senderType: 'system', senderId: 0, senderName: '系统', receiverId: 10001, category: 'reward', title: '充值到账', content: '您购买的648元至尊礼包已到账，获得钻石×7680', attachments: [], isRead: false, isClaimed: true, expireAt: '2025-08-01', createdAt: '2025-07-07 12:00:00' },
+  ],
+  unreadMailCount: 3,
+  rewardMailCount: 2,
+
   staminaTimer: 300,
   tickStamina: () => {
     const { player, staminaTimer } = get()
@@ -325,6 +415,42 @@ export const useGameStore = create<GameState>((set, get) => ({
       set({ staminaTimer: newTimer })
     }
   },
+
+  setBattlePassPremium: (v) => set({ currentBPPremium: v }),
+  addBattlePassExp: (exp) => set((s) => {
+    let level = s.battlePassLevel;
+    let currentExp = s.battlePassExp + exp;
+    const newClaimed = [...s.battlePassClaimed];
+    while (level < 50) {
+      const needed = getRequiredExp(level);
+      if (currentExp < needed) break;
+      currentExp -= needed;
+      level++;
+      if (!newClaimed.includes(level)) {
+        newClaimed.push(level);
+      }
+    }
+    return { battlePassLevel: level, battlePassExp: currentExp, battlePassClaimed: newClaimed };
+  }),
+  claimBPReward: (level) => set((s) => ({ battlePassClaimed: [...s.battlePassClaimed, level] })),
+  readMail: (mailId) => set((s) => ({
+    mails: s.mails.map((m) => m.id === mailId ? { ...m, isRead: true } : m),
+    unreadMailCount: Math.max(0, s.unreadMailCount - 1),
+  })),
+  claimMailReward: (mailId) => set((s) => ({
+    mails: s.mails.map((m) => m.id === mailId ? { ...m, isClaimed: true, isRead: true } : m),
+    rewardMailCount: Math.max(0, s.rewardMailCount - 1),
+  })),
+  deleteMail: (mailId) => set((s) => ({ mails: s.mails.filter((m) => m.id !== mailId) })),
+  batchReadMails: (mailIds) => set((s) => ({
+    mails: s.mails.map((m) => mailIds.includes(m.id) ? { ...m, isRead: true } : m),
+    unreadMailCount: Math.max(0, s.unreadMailCount - mailIds.length),
+  })),
+  claimActivityReward: (activityId, taskId) => set((s) => ({
+    activities: s.activities.map((a) => a.id === activityId ? {
+      ...a, tasks: a.tasks.map((t) => t.id === taskId ? { ...t, progress: t.targetCount, status: 2 } : t),
+    } : a),
+  })),
 }))
 
 // ==================== Utilities ====================
@@ -377,4 +503,8 @@ export function getPoolBadge(type: CardPool['type']): { label: string; color: st
 export function getElementIcon(el: string): string {
   const map: Record<string, string> = { '火': '🔥', '水': '💧', '风': '🌪️', '地': '🪨', '雷': '⚡', '暗': '🌑' }
   return map[el] || '✨'
+}
+
+export function getRequiredExp(level: number): number {
+  return level * level * 200 + 100;
 }

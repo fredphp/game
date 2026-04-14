@@ -254,3 +254,183 @@ model CoreFlowDailyStats {
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 }
+
+// ==================== 运营系统 ====================
+
+/// 运营活动
+model Activity {
+  id          Int            @id @default(autoincrement())
+  title       String                               // 活动标题
+  description String         @default("")          // 活动描述
+  type        String         @default("gacha")      // 类型: gacha/battle/collection/social/limited
+  status      String         @default("draft")      // 状态: draft/active/paused/ended
+  startTime   String         @default("")          // 开始时间
+  endTime     String         @default("")          // 结束时间
+  rewards     String         @default("{}")          // 奖励JSON
+  tasks       ActivityTask[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+/// 活动任务 (活动下的具体任务项)
+model ActivityTask {
+  id            Int      @id @default(autoincrement())
+  activityId     Int                                // 所属活动ID
+  sortOrder     Int      @default(0)                   // 排序
+  title         String                              // 任务标题
+  description   String   @default("")                 // 任务描述
+  taskType      String   @default("collect")         // 类型: collect/battle/gacha/trade/login/social
+  targetType    String   @default("")                 // 目标类型: hero/gold/diamond/win/battle_count
+  targetCount    Int      @default(1)                   // 目标数量
+  targetId      String   @default("")                 // 目标具体ID
+  rewards       String   @default("{}")                // 奖励JSON
+  status        Int      @default(1)                   // 1=启用 0=禁用
+  activity      Activity @relation(fields: [activityId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([activityId])
+}
+
+/// 玩家活动进度
+model PlayerActivityProgress {
+  id            Int      @id @default(autoincrement())
+  userId        Int                                // 用户ID
+  activityId     Int                                // 活动ID
+  taskId        Int      @default(0)                 // 任务ID
+  progress      Int      @default(0)                   // 当前进度
+  status        Int      @default(0)                   // 0=未开始 1=进行中 2=已领取
+  rewards       String   @default("{}")                // 领取的奖励JSON
+  completedAt   DateTime?                          // 完成时间
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
+  @@index([activityId])
+  @@index([status])
+}
+
+/// 战令(Battle Pass)
+model BattlePass {
+  id            Int                @id @default(autoincrement())
+  seasonKey     String             @unique                  // 赛季标识(如 "S2025S3")
+  title         String                                     // 赛季标题
+  description   String             @default("")           // 赛季描述
+  startTime     String                                     // 开始时间
+  endTime       String                                     // 结束时间
+  price         Int                @default(0)             // 价格(钻石)
+  premiumPrice   Int                @default(0)             // 高级版价格(钻石)
+  isPremium     Boolean            @default(false)          // 是否高级版
+  status        Int                @default(1)             // 1=进行中 0=未开始 2=已结束
+  totalExp       Int                @default(0)             // 总经验值(满级经验)
+  participants   Int                @default(0)             // 参与人数
+  premiumUsers   Int                @default(0)             // 购买高级版人数
+  levels        BattlePassLevel[]
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+}
+
+/// 战令等级奖励
+model BattlePassLevel {
+  id            Int      @id @default(autoincrement())
+  passId        Int                                // 所属战令ID
+  level         Int                                // 等级 (1-50)
+  requiredExp    Int                                // 所需经验
+  freeRewards    String   @default("{}")              // 免费奖励JSON
+  premiumRewards String   @default("{}")              // 高级奖励JSON
+  title         String   @default("")                 // 等级标题
+  iconType      String   @default("chest")              // 图标类型
+  battlePass    BattlePass @relation(fields: [passId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([passId])
+  @@index([passId, level])
+}
+
+/// 玩家战令进度
+model PlayerBattlePass {
+  id            Int      @id @default(autoincrement())
+  userId        Int                                // 用户ID
+  passId        Int                                // 战令ID
+  isPremium     Boolean  @default(false)              // 是否高级版
+  currentLevel   Int      @default(0)                   // 当前等级
+  currentExp     Int      @default(0)                   // 当前经验
+  totalExpGained Int      @default(0)                   // 累计获得经验
+  claimedLevels String   @default("[]")                // 已领取等级JSON数组 [1,2,5]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([userId, passId])
+  @@index([userId])
+  @@index([passId])
+}
+
+/// 限时卡池
+model LimitedPool {
+  id            Int      @id @default(autoincrement())
+  poolKey       String   @unique                  // 卡池唯一标识
+  name          String                              // 卡池名称
+  type          String   @default("limited")          // 类型: limited/faction/mix/rateup
+  description   String   @default("")                 // 卡池描述
+  bannerUrl     String   @default("")                 // Banner图片URL
+  startTime     String                              // 开始时间
+  endTime       String                              // 结束时间
+  ssrRate       Float    @default(1.5)               // SSR概率(%)
+  srRate        Float    @default(8.5)               // SR概率(%)
+  rRate         Float    @default(90.0)              // R概率(%)
+  pityCount     Int      @default(50)                  // 软保底
+  hardPityCount Int      @default(80)                  // 硬保底
+  upHeroId      Int      @default(0)                   // UP英雄ID (0=无UP)
+  upRate        Float    @default(0.5)               // UP额外概率(%)
+  totalDraws    Int      @default(0)                   // 总抽数
+  todayDraws     Int      @default(0)                   // 今日抽数
+  status        Int      @default(1)                   // 1=开启 0=关闭
+  sort          Int      @default(0)                   // 排序权重
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([type])
+  @@index([status])
+  @@index([startTime])
+}
+
+/// 邮件
+model Mail {
+  id            Int      @id @default(autoincrement())
+  mailUid       String   @unique                  // 邮件唯一ID
+  senderType    String   @default("system")          // 发送者类型: system/gm/guild/personal
+  senderId      Int      @default(0)                   // 发送者ID
+  senderName    String   @default("系统")            // 发送者名称
+  receiverId     Int                                // 接收者ID
+  category      String   @default("system")          // 分类: system/reward/activity/notification/social/guild
+  title         String                              // 邮件标题
+  content       String   @default("")                 // 邮件正文
+  attachments   String   @default("[]")                // 附件JSON [{type, id, name, count}]
+  isRead        Boolean  @default(false)              // 是否已读
+  isClaimed     Boolean  @default(false)              // 奖励是否已领取
+  isDeleted     Boolean  @default(false)              // 是否已删除(软删)
+  expireAt      DateTime?                          // 过期时间
+  claimedAt     DateTime?                          // 领取时间
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([receiverId])
+  @@index([category])
+  @@index([isRead])
+  @@index([isDeleted])
+  @@index([createdAt])
+}
+
+/// 玩家邮件统计
+model MailStats {
+  id            Int      @id @default(autoincrement())
+  userId        Int      @unique                  // 用户ID
+  total         Int      @default(0)                   // 总邮件数
+  unread        Int      @default(0)                   // 未读数
+  rewardPending Int      @default(0)                   // 待领取奖励邮件数
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
+}

@@ -19,6 +19,7 @@ import {
   Lock,
   ArrowDownUp,
   Target,
+  Flame,
 } from "lucide-react";
 
 import { menuItems } from "@/lib/admin-data";
@@ -76,6 +77,7 @@ const iconMap: Record<string, React.ComponentType<React.SVGProps<SVGSVGElement>>
   Lock,
   ArrowDownUp,
   Target,
+  Flame,
 };
 
 // ---------------------------------------------------------------------------

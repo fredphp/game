@@ -333,6 +333,62 @@ export interface ConfigItem {
   updatedBy: string;
 }
 
+// ==================== 战令系统 ====================
+export interface BattlePass {
+  id: number;
+  title: string;
+  description: string;
+  startTime: string;
+  endTime: string;
+  totalExp: number;
+  freePrice: number;
+  premiumPrice: number;
+  participants: number;
+  premiumUsers: number;
+  status: number; // 1=开启 0=关闭
+  createdAt: string;
+}
+
+// ==================== 运营系统 ====================
+
+export interface ActivityTask {
+  id: number; activityId: number; sortOrder: number; title: string; description: string;
+  taskType: 'collect' | 'battle' | 'gacha' | 'trade' | 'login' | 'social';
+  targetType: string; targetCount: number; targetId: string; rewards: string; status: number; createdAt: string;
+}
+
+export interface ActivityWithTasks extends Activity {
+  tasks: ActivityTask[];
+}
+
+export interface BattlePassLevel {
+  id: number; passId: number; level: number; requiredExp: number;
+  freeRewards: string; premiumRewards: string; title: string; iconType: string;
+}
+
+export interface BattlePassWithLevels extends BattlePass {
+  levels: BattlePassLevel[];
+}
+
+export interface LimitedPool {
+  id: number; poolKey: string; name: string; type: 'limited' | 'faction' | 'mix' | 'rateup';
+  description: string; bannerUrl: string; startTime: string; endTime: string;
+  ssrRate: number; srRate: number; rRate: number; pityCount: number;
+  hardPityCount: number; upHeroId: number; upRate: number;
+  totalDraws: number; todayDraws: number; status: number; sort: number; createdAt: string;
+}
+
+export interface GameMail {
+  id: number; mailUid: string; senderType: string; senderId: number; senderName: string;
+  receiverId: number; category: string; title: string; content: string;
+  attachments: string; isRead: boolean; isClaimed: boolean; isDeleted: boolean;
+  expireAt: string | null; claimedAt: string | null; createdAt: string; updatedAt: string;
+}
+
+export interface MailStats {
+  id: number; userId: number; total: number; unread: number; rewardPending: number;
+}
+
 // ==================== 活动系统 ====================
 export interface Activity {
   id: number;
@@ -734,4 +790,5 @@ export const menuItems = [
   { id: 'activities', name: '活动系统', icon: 'PartyPopper' },
   { id: 'roles', name: '角色权限', icon: 'Lock' },
   { id: 'economy', name: '经济系统', icon: 'ArrowDownUp' },
+  { id: 'operations', name: '运营系统', icon: 'Flame' },
 ];
