@@ -1,12 +1,12 @@
 // =============================================================================
 // 九州争鼎 (Jiuzhou Zhengding) - Unity Client Module
 // =============================================================================
-// 描述：新手引导管理器 —— 管理引导流程的状态机，驱动 TutorialPanel 展示。
-//       单例模式（继承 Singleton<T>），负责：
-//       - 玩家登录后检查是否需要引导
-//       - 新玩家自动启动引导
-//       - 监听游戏事件自动推进条件触发步骤
-//       - 协调 UIManager 开/关面板配合引导流程
+// 描述：新手引导管理器 —— 增强型智能引导系统。
+//       单例模式（继承 Singleton<T>），支持：
+//       - 智能条件检测触发（等级/建筑/战斗/抽卡/任务/社交/资源）
+//       - 优先级系统：必做步骤阻塞流程，可选步骤可跳过
+//       - 挂起(Suspended)状态 + 自动恢复
+//       - 断点恢复：服务重启后从最后未完成步骤继续
 //       - 保存完成状态到 PlayerPrefs
 // =============================================================================
 
@@ -21,594 +21,535 @@ using Game.Data;
 namespace Game.Module.Quest
 {
     /// <summary>
-    /// 新手引导管理器 - 状态机驱动
-    /// 管理引导步骤的加载、推进、完成、跳过
-    /// 单例模式，游戏启动后由 GameManager 初始化
+    /// 新手引导步骤配置 —— 内置默认引导流程的数据结构。
+    /// </summary>
+    [Serializable]
+    public class TutorialStepConfig
+    {
+        public string stepKey;          // 步骤唯一标识
+        public string title;            // 步骤标题
+        public string triggerType;      // level/building/battle/gacha/quest/social/resource
+        public int triggerValue;        // 触发阈值
+        public string uiTarget;         // 高亮 UI 路径
+        public string dialogNPC;        // NPC 名称
+        public string dialogText;       // 对话内容
+        public Vector2 dialogPosition;  // 对话位置 (x:-1左/0中/1右, y:纵向偏移)
+        public Vector2 highlightPos;    // 高亮区域中心
+        public Vector2 highlightSize;   // 高亮区域尺寸
+        public string nextStepKey;      // 手动链接下一步
+        public bool isRequired;         // 是否必做（不可跳过）
+        public string rewards;          // 奖励 JSON
+        public float autoShowDelay;     // 自动展示延迟（秒）
+    }
+
+    /// <summary>
+    /// 新手引导管理器 - 增强型状态机驱动。
+    /// 单例模式，游戏启动后由 GameManager 初始化。
     /// </summary>
     public class TutorialManager : Singleton<TutorialManager>
     {
-        // ============================================================
-        // 引导状态枚举
-        // ============================================================
+        private enum TutorialState { Idle, Loading, Waiting, Suspended, Running, Completed, Skipped }
 
-        private enum TutorialState
-        {
-            /// <summary>未初始化</summary>
-            Idle,
-            /// <summary>加载步骤数据中</summary>
-            Loading,
-            /// <summary>等待开始（等待条件满足）</summary>
-            Waiting,
-            /// <summary>引导进行中</summary>
-            Running,
-            /// <summary>引导已完成</summary>
-            Completed,
-            /// <summary>引导已跳过</summary>
-            Skipped
-        }
+        // PlayerPrefs 键
+        private const string PP_COMPLETED = "tutorial_completed_steps";
+        private const string PP_CURRENT = "tutorial_current_step";
+        private const string PP_SKIPPED = "tutorial_skipped";
+        private const float CHECK_INTERVAL = 0.5f;
 
-        // ============================================================
-        // 常量
-        // ============================================================
-
-        /// <summary>PlayerPrefs 存储键</summary>
-        private const string PP_TUTORIAL_COMPLETED = "tutorial_completed";
-        private const string PP_TUTORIAL_LAST_STEP = "tutorial_last_step";
-        private const string PP_TUTORIAL_SKIPPED = "tutorial_skipped";
-
-        // ============================================================
-        // 内部状态
-        // ============================================================
-
-        /// <summary>当前引导状态</summary>
         private TutorialState state = TutorialState.Idle;
-
-        /// <summary>所有引导步骤定义</summary>
-        private List<TutorialStep> allSteps = new List<TutorialStep>();
-
-        /// <summary>玩家引导进度</summary>
-        private List<TutorialProgress> playerProgress = new List<TutorialProgress>();
-
-        /// <summary>当前步骤索引</summary>
-        private int currentStepIndex = 0;
-
-        /// <summary>当前正在展示的步骤</summary>
-        private TutorialStep currentStep;
-
-        /// <summary>引导面板引用</summary>
+        private TutorialStepConfig[] steps;
+        private Dictionary<string, bool> completedSteps = new Dictionary<string, bool>();
+        private int currentStepIndex;
+        private TutorialStepConfig currentStepConfig;
         private TutorialPanel tutorialPanel;
-
-        /// <summary>引导完成后的回调</summary>
         private Action onTutorialComplete;
+        private List<TutorialStep> serverSteps = new List<TutorialStep>();
+        private Coroutine conditionCoroutine;
+        private Coroutine autoShowCoroutine;
+        private HashSet<string> triggeredEvents = new HashSet<string>();
 
-        /// <summary>是否正在等待条件满足</summary>
-        private bool isWaitingForCondition = false;
-
-        /// <summary>当前条件监听的事件名</summary>
-        private string listeningEventName = string.Empty;
-
-        /// <summary>条件检查的协程引用</summary>
-        private Coroutine conditionCheckCoroutine;
-
-        // ============================================================
-        // 公开属性
-        // ============================================================
-
-        /// <summary>引导是否正在进行中</summary>
-        public bool IsRunning => state == TutorialState.Running;
-
+        /// <summary>引导是否正在进行中（含挂起）</summary>
+        public bool IsRunning => state == TutorialState.Running || state == TutorialState.Suspended;
         /// <summary>引导是否已完成或已跳过</summary>
         public bool IsFinished => state == TutorialState.Completed || state == TutorialState.Skipped;
-
         /// <summary>引导是否已完成（非跳过）</summary>
         public bool IsCompleted => state == TutorialState.Completed;
-
-        // ============================================================
-        // 生命周期
-        // ============================================================
 
         protected override void OnInitialize()
         {
             base.OnInitialize();
-
+            RegisterGameEvents();
             Debug.Log("[TutorialManager] 初始化完成");
         }
 
-        /// <summary>
-        /// 销毁时清理事件监听
-        /// </summary>
         protected override void OnDestroy()
         {
-            UnregisterAllEventListeners();
-            if (conditionCheckCoroutine != null)
-            {
-                StopCoroutine(conditionCheckCoroutine);
-                conditionCheckCoroutine = null;
-            }
+            UnregisterGameEvents();
+            StopAllCoroutines();
             base.OnDestroy();
         }
 
         // ============================================================
-        // 公开方法 —— 外部调用入口
+        // 公开方法
         // ============================================================
 
-        /// <summary>
-        /// 检查并启动新手引导（登录后调用）
-        /// </summary>
-        /// <param name="onComplete">引导完成后的回调（无论完成还是跳过）</param>
+        /// <summary>检查并启动新手引导（登录后调用）</summary>
         public void CheckAndStartTutorial(Action onComplete = null)
         {
             onTutorialComplete = onComplete;
+            LoadProgress();
 
-            // 检查本地是否已完成
             if (IsTutorialFinishedLocally())
             {
-                Debug.Log("[TutorialManager] 新手引导已完成（本地缓存），跳过检查");
                 state = TutorialState.Completed;
                 onTutorialComplete?.Invoke();
                 return;
             }
-
-            // 从服务端获取进度
-            StartCoroutine(LoadTutorialData());
+            StartCoroutine(LoadServerData());
         }
 
-        /// <summary>
-        /// 手动触发事件通知（当游戏中触发相关事件时调用）
-        /// 例：完成首次战斗后调用 TriggerGameEvent("battle_victory")
-        /// </summary>
-        /// <param name="eventName">游戏事件名</param>
+        /// <summary>手动触发游戏事件通知</summary>
         public void TriggerGameEvent(string eventName)
         {
-            if (state != TutorialState.Running || currentStep == null) return;
-
-            Debug.Log($"[TutorialManager] 收到游戏事件: {eventName}, 当前等待条件: {currentStep.TriggerCondition}");
-
-            // 检查当前步骤是否在等待此事件
-            if (currentStep.IsConditionTrigger && currentStep.TriggerCondition == eventName)
-            {
-                // 条件满足，推进到下一步
-                isWaitingForCondition = false;
-                AdvanceToNextStep();
-            }
+            triggeredEvents.Add(eventName);
+            if (state == TutorialState.Suspended) TryResumeFromSuspended();
         }
 
-        /// <summary>
-        /// 暂停引导（打开其他面板时暂停）
-        /// </summary>
+        /// <summary>暂停引导（打开其他面板时）</summary>
         public void PauseTutorial()
         {
             if (state != TutorialState.Running) return;
-
-            Debug.Log("[TutorialManager] 暂停引导");
-            // 隐藏引导面板但不关闭
-            if (tutorialPanel != null)
-            {
-                tutorialPanel.gameObject.SetActive(false);
-            }
+            if (tutorialPanel != null) tutorialPanel.gameObject.SetActive(false);
         }
 
-        /// <summary>
-        /// 恢复引导
-        /// </summary>
+        /// <summary>恢复引导</summary>
         public void ResumeTutorial()
         {
             if (state != TutorialState.Running) return;
-
-            Debug.Log("[TutorialManager] 恢复引导");
-            if (tutorialPanel != null)
+            if (tutorialPanel != null && currentStepConfig != null)
             {
                 tutorialPanel.gameObject.SetActive(true);
-                // 重新展示当前步骤
-                tutorialPanel.ShowStep(currentStep, currentStepIndex, allSteps.Count);
+                ShowCurrentStepOnPanel();
             }
         }
 
-        /// <summary>
-        /// 强制重置引导状态（调试用）
-        /// </summary>
+        /// <summary>强制重置引导状态（调试用）</summary>
         public void ResetTutorial()
         {
             state = TutorialState.Idle;
             currentStepIndex = 0;
-            allSteps.Clear();
-            playerProgress.Clear();
-            currentStep = null;
-            isWaitingForCondition = false;
-
-            // 清除本地存储
-            PlayerPrefs.DeleteKey(PP_TUTORIAL_COMPLETED);
-            PlayerPrefs.DeleteKey(PP_TUTORIAL_LAST_STEP);
-            PlayerPrefs.DeleteKey(PP_TUTORIAL_SKIPPED);
+            steps = null;
+            completedSteps.Clear();
+            currentStepConfig = null;
+            triggeredEvents.Clear();
+            PlayerPrefs.DeleteKey(PP_COMPLETED);
+            PlayerPrefs.DeleteKey(PP_CURRENT);
+            PlayerPrefs.DeleteKey(PP_SKIPPED);
             PlayerPrefs.Save();
-
-            UnregisterAllEventListeners();
 
             if (tutorialPanel != null)
             {
+                tutorialPanel.ForceFinish();
                 UIManager.Instance.ClosePanel("TutorialPanel");
                 tutorialPanel = null;
             }
-
-            Debug.Log("[TutorialManager] 引导状态已重置");
+            StopAllCoroutines();
         }
 
         // ============================================================
-        // 数据加载
+        // 服务端数据加载
         // ============================================================
 
-        private IEnumerator LoadTutorialData()
+        private IEnumerator LoadServerData()
         {
             state = TutorialState.Loading;
-            Debug.Log("[TutorialManager] 开始加载引导数据...");
+            bool allDone = false;
 
-            bool dataLoaded = false;
-
-            // 并行加载步骤定义和进度
-            yield return StartCoroutine(QuestApi.GetTutorialSteps((stepsResult) =>
+            yield return StartCoroutine(QuestApi.GetTutorialSteps(r =>
             {
-                if (stepsResult != null && stepsResult.IsSuccess() && stepsResult.data != null)
+                if (r != null && r.IsSuccess() && r.data?.Steps != null && r.data.Steps.Count > 0)
                 {
-                    allSteps = new List<TutorialStep>(stepsResult.data.Steps ?? new List<TutorialStep>());
-                    // 按顺序排列
-                    allSteps.Sort((a, b) => a.Order.CompareTo(b.Order));
-                    Debug.Log($"[TutorialManager] 步骤定义加载成功: {allSteps.Count}步");
+                    serverSteps = new List<TutorialStep>(r.data.Steps);
+                    serverSteps.Sort((a, b) => a.Order.CompareTo(b.Order));
                 }
-                else
-                {
-                    Debug.LogWarning($"[TutorialManager] 步骤定义加载失败: {stepsResult?.message}");
-                }
+                allDone = true;
             }));
 
-            yield return StartCoroutine(QuestApi.GetTutorialProgress((progressResult) =>
-            {
-                if (progressResult != null && progressResult.IsSuccess() && progressResult.data != null)
-                {
-                    playerProgress = new List<TutorialProgress>(progressResult.data.Progress ?? new List<TutorialProgress>());
-                    Debug.Log($"[TutorialManager] 进度加载成功: {progressResult.data.Completed}/{progressResult.data.Total}");
+            if (!allDone) allDone = true;
 
-                    // 如果服务端显示全部完成
-                    if (progressResult.data.IsAllCompleted)
+            yield return StartCoroutine(QuestApi.GetTutorialProgress(r =>
+            {
+                if (r != null && r.IsSuccess() && r.data != null)
+                {
+                    if (r.data.IsAllCompleted)
                     {
                         SaveCompletionLocally();
                         state = TutorialState.Completed;
                         onTutorialComplete?.Invoke();
                         return;
                     }
-
-                    dataLoaded = true;
-                }
-                else
-                {
-                    Debug.LogWarning($"[TutorialManager] 进度加载失败: {progressResult?.message}");
-                    dataLoaded = true; // 继续尝试
+                    if (r.data.Progress != null)
+                        foreach (var p in r.data.Progress)
+                            if (p.IsCompleted) completedSteps[p.StepId.ToString()] = true;
                 }
             }));
 
-            // 等待两个请求都完成
-            if (allSteps.Count == 0)
-            {
-                Debug.LogWarning("[TutorialManager] 无引导步骤数据，跳过引导");
-                state = TutorialState.Completed;
-                SaveCompletionLocally();
-                onTutorialComplete?.Invoke();
-                yield break;
-            }
+            steps = serverSteps.Count > 0 ? ConvertServerSteps() : GetDefaultSteps();
+            currentStepIndex = FindFirstIncomplete();
 
-            // 查找第一个未完成的步骤
-            currentStepIndex = FindFirstIncompleteStepIndex();
-
-            if (currentStepIndex >= allSteps.Count)
-            {
-                Debug.Log("[TutorialManager] 所有步骤已完成");
-                state = TutorialState.Completed;
-                SaveCompletionLocally();
-                onTutorialComplete?.Invoke();
-                yield break;
-            }
-
-            // 启动引导
-            StartTutorial();
+            if (currentStepIndex >= steps.Length) { FinishTutorial(); yield break; }
+            StartTutorialAt(currentStepIndex);
         }
 
-        private int FindFirstIncompleteStepIndex()
+        private TutorialStepConfig[] ConvertServerSteps()
         {
-            if (playerProgress == null || playerProgress.Count == 0)
-                return 0;
-
-            // 找到第一个状态不为"已完成"的步骤
-            for (int i = 0; i < allSteps.Count; i++)
-            {
-                bool found = false;
-                for (int j = 0; j < playerProgress.Count; j++)
+            var list = new List<TutorialStepConfig>();
+            foreach (var s in serverSteps)
+                list.Add(new TutorialStepConfig
                 {
-                    if (playerProgress[j].StepId == allSteps[i].StepId && playerProgress[j].IsCompleted)
-                    {
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found) return i;
-            }
-
-            return allSteps.Count; // 全部完成
+                    stepKey = s.StepId.ToString(), title = s.Title, triggerType = s.TriggerType,
+                    triggerValue = s.Order, uiTarget = s.TargetUiPath, dialogNPC = s.Speaker,
+                    dialogText = s.Description, isRequired = !s.Skippable,
+                    nextStepKey = s.NextStepId > 0 ? s.NextStepId.ToString() : null
+                });
+            return list.ToArray();
         }
 
         // ============================================================
-        // 引导流程控制
+        // 内置默认步骤（8步）
         // ============================================================
 
-        private void StartTutorial()
+        private TutorialStepConfig[] GetDefaultSteps() => new[]
         {
+            new() { stepKey="welcome", title="欢迎来到九州", triggerType="level", triggerValue=1,
+                     uiTarget="main_top_bar", dialogNPC="诸葛亮",
+                     dialogText="主公，欢迎来到九州大陆！天下大乱，群雄并起，正是英雄用武之时。让我们开始征战吧！",
+                     dialogPosition=new Vector2(0f,-100f), isRequired=true, rewards="{\"gold\":1000}", autoShowDelay=1f },
+            new() { stepKey="recruit_hero", title="招募第一位武将", triggerType="level", triggerValue=1,
+                     uiTarget="btn_recruit", dialogNPC="诸葛亮",
+                     dialogText="兵马未动，粮草先行。不过主公，我们更需要的是猛将！点击招募按钮，招揽第一位武将吧。",
+                     dialogPosition=new Vector2(-1f,-50f), highlightPos=new Vector2(-350f,350f),
+                     highlightSize=new Vector2(80f,80f), nextStepKey="first_battle", isRequired=true, rewards="{\"diamonds\":100}" },
+            new() { stepKey="first_battle", title="首次战斗", triggerType="battle", triggerValue=1,
+                     uiTarget="btn_battle", dialogNPC="诸葛亮",
+                     dialogText="武将已就位，是时候一展身手了！点击战斗按钮，进入第一场战斗，让敌人见识我军威风！",
+                     dialogPosition=new Vector2(1f,-50f), highlightPos=new Vector2(350f,350f),
+                     highlightSize=new Vector2(80f,80f), nextStepKey="upgrade_building", isRequired=true,
+                     rewards="{\"stamina\":50,\"exp\":200}" },
+            new() { stepKey="upgrade_building", title="升级建筑", triggerType="building", triggerValue=1,
+                     uiTarget="building_panel", dialogNPC="诸葛亮",
+                     dialogText="主公大胜！城池是根基，升级主城可解锁更多功能。点击建筑面板，先升级主城吧。",
+                     dialogPosition=new Vector2(0f,100f), nextStepKey="join_guild", isRequired=true,
+                     rewards="{\"gold\":500}", autoShowDelay=0.5f },
+            new() { stepKey="join_guild", title="加入联盟", triggerType="social", triggerValue=1,
+                     uiTarget="btn_guild", dialogNPC="诸葛亮",
+                     dialogText="独木难支，众志成城。加入一个联盟，与志同道合的盟友并肩作战，攻城略地！",
+                     dialogPosition=new Vector2(1f,-50f), highlightPos=new Vector2(250f,350f),
+                     highlightSize=new Vector2(80f,80f), nextStepKey="first_10_pull", isRequired=false, rewards="{\"gold\":300}" },
+            new() { stepKey="first_10_pull", title="首次十连招募", triggerType="gacha", triggerValue=10,
+                     uiTarget="btn_gacha_10", dialogNPC="诸葛亮",
+                     dialogText="主公，十连招募必出SR武将！赶紧来一发十连，扩充你的武将阵容吧！",
+                     dialogPosition=new Vector2(0f,100f), highlightPos=new Vector2(0f,-200f),
+                     highlightSize=new Vector2(300f,80f), nextStepKey="equip_hero", isRequired=false,
+                     rewards="{\"diamonds\":50}" },
+            new() { stepKey="equip_hero", title="装备武将", triggerType="quest", triggerValue=1,
+                     uiTarget="hero_detail_panel", dialogNPC="诸葛亮",
+                     dialogText="为武将装备合适的武器和防具，可以大幅提升战力。点击武将详情，试试装备系统吧。",
+                     dialogPosition=new Vector2(-1f,-50f), highlightPos=new Vector2(-200f,0f),
+                     highlightSize=new Vector2(300f,300f), nextStepKey="daily_sign", isRequired=false,
+                     rewards="{\"material\":5}" },
+            new() { stepKey="daily_sign", title="每日签到", triggerType="resource", triggerValue=1,
+                     uiTarget="btn_daily_sign", dialogNPC="诸葛亮",
+                     dialogText="每日签到可领取丰厚奖励，连续签到还有额外惊喜！别忘了每天来看看哦，主公。",
+                     dialogPosition=new Vector2(0f,-100f), highlightPos=new Vector2(0f,400f),
+                     highlightSize=new Vector2(80f,80f), isRequired=false, rewards="{\"gold\":200,\"diamonds\":20}" }
+        };
+
+        // ============================================================
+        // 进度查找与断点恢复
+        // ============================================================
+
+        private int FindFirstIncomplete()
+        {
+            if (steps == null) return 0;
+            for (int i = 0; i < steps.Length; i++)
+                if (!completedSteps.ContainsKey(steps[i].stepKey)) return i;
+            return steps.Length;
+        }
+
+        // ============================================================
+        // 流程控制
+        // ============================================================
+
+        private void StartTutorialAt(int index)
+        {
+            currentStepIndex = index;
             state = TutorialState.Running;
-            Debug.Log($"[TutorialManager] 启动引导，从步骤 {currentStepIndex + 1}/{allSteps.Count} 开始");
-
-            // 打开引导面板
-            OpenTutorialPanel();
-        }
-
-        private void OpenTutorialPanel()
-        {
-            // 先确保面板存在
             tutorialPanel = UnityEngine.Object.FindObjectOfType<TutorialPanel>();
-
             if (tutorialPanel == null)
             {
-                // 通过 UIManager 打开面板
                 UIManager.Instance.OpenPanel("TutorialPanel");
                 tutorialPanel = UnityEngine.Object.FindObjectOfType<TutorialPanel>();
             }
-
-            if (tutorialPanel == null)
-            {
-                Debug.LogError("[TutorialManager] 无法打开 TutorialPanel");
-                return;
-            }
-
-            // 设置回调
-            tutorialPanel.SetCallbacks(
-                OnStepCompleteCallback,     // 步骤完成
-                OnTutorialSkipCallback,     // 跳过引导
-                OnTutorialFinishCallback    // 引导结束
-            );
-
-            // 展示当前步骤
-            ShowCurrentStep();
+            if (tutorialPanel != null)
+                tutorialPanel.SetCallbacks(OnStepComplete, OnSkip, OnFinish);
+            AdvanceToStep(index);
         }
 
-        private void ShowCurrentStep()
+        private void AdvanceToStep(int index)
         {
-            if (currentStepIndex < 0 || currentStepIndex >= allSteps.Count)
-            {
-                FinishTutorial();
-                return;
-            }
+            if (index < 0 || index >= steps.Length) { FinishTutorial(); return; }
+            currentStepIndex = index;
+            currentStepConfig = steps[index];
 
-            currentStep = allSteps[currentStepIndex];
+            // 已完成则跳过
+            if (completedSteps.ContainsKey(currentStepConfig.stepKey))
+            { AdvanceToStep(index + 1); return; }
 
-            // 检查是否需要等待条件
-            if (currentStep.IsConditionTrigger)
-            {
-                StartConditionWaiting();
-                return;
-            }
+            // 条件不满足则挂起
+            if (!CheckCondition(currentStepConfig)) { SuspendStep(); return; }
 
-            // 检查是否需要打开面板
-            if (!string.IsNullOrEmpty(currentStep.TargetPanel))
-            {
-                UIManager.Instance.OpenPanel(currentStep.TargetPanel);
-            }
+            SaveProgress();
 
-            // 展示步骤
-            if (tutorialPanel != null)
+            // 延迟或立即展示
+            if (currentStepConfig.autoShowDelay > 0f)
             {
-                tutorialPanel.gameObject.SetActive(true);
-                tutorialPanel.ShowStep(currentStep, currentStepIndex, allSteps.Count);
+                state = TutorialState.Waiting;
+                if (autoShowCoroutine != null) StopCoroutine(autoShowCoroutine);
+                autoShowCoroutine = StartCoroutine(DelayedShow(currentStepConfig.autoShowDelay));
             }
+            else
+            {
+                ShowCurrentStepOnPanel();
+            }
+        }
+
+        private void ShowCurrentStepOnPanel()
+        {
+            if (currentStepConfig == null || tutorialPanel == null) return;
+            state = TutorialState.Running;
+
+            string panel = InferPanel(currentStepConfig.uiTarget);
+            if (!string.IsNullOrEmpty(panel)) UIManager.Instance.OpenPanel(panel);
+
+            tutorialPanel.gameObject.SetActive(true);
+            tutorialPanel.ShowStep(new TutorialStep
+            {
+                StepId = currentStepIndex + 1, Title = currentStepConfig.title,
+                Description = currentStepConfig.dialogText, Speaker = currentStepConfig.dialogNPC,
+                TargetUiPath = currentStepConfig.uiTarget, Skippable = !currentStepConfig.isRequired
+            }, currentStepIndex, steps.Length);
+        }
+
+        private string InferPanel(string target)
+        {
+            if (string.IsNullOrEmpty(target)) return null;
+            if (target.Contains("recruit") || target.Contains("gacha")) return Constants.PanelNames.DECK;
+            if (target.Contains("battle")) return Constants.PanelNames.BATTLE;
+            if (target.Contains("building") || target.Contains("sign") || target.Contains("daily"))
+                return Constants.PanelNames.MAIN_CITY;
+            if (target.Contains("guild")) return Constants.PanelNames.GUILD;
+            if (target.Contains("hero") || target.Contains("equip")) return Constants.PanelNames.CARD_DETAIL;
+            return null;
         }
 
         private void AdvanceToNextStep()
         {
-            currentStepIndex++;
+            if (currentStepConfig == null) return;
+            completedSteps[currentStepConfig.stepKey] = true;
+            SaveProgress();
 
-            if (currentStepIndex >= allSteps.Count)
+            // 上报服务端
+            StartCoroutine(QuestApi.CompleteTutorialStep(currentStepIndex + 1, r => { }));
+
+            // 发放奖励
+            if (!string.IsNullOrEmpty(currentStepConfig.rewards))
+                EventBus.Trigger(Constants.GameEvents.RESOURCE_CHANGED, currentStepConfig.rewards);
+
+            int next = currentStepIndex + 1;
+            if (!string.IsNullOrEmpty(currentStepConfig.nextStepKey))
             {
-                FinishTutorial();
-                return;
+                int found = FindIndexByKey(currentStepConfig.nextStepKey);
+                if (found >= 0) next = found;
             }
-
-            // 通知服务端完成当前步骤
-            if (currentStep != null)
-            {
-                StartCoroutine(QuestApi.CompleteTutorialStep(currentStep.StepId, (result) =>
-                {
-                    if (result != null && result.IsSuccess())
-                    {
-                        Debug.Log($"[TutorialManager] 步骤 {currentStep.StepId} 完成上报成功");
-                    }
-                    else
-                    {
-                        Debug.LogWarning($"[TutorialManager] 步骤完成上报失败: {result?.message}");
-                    }
-                }));
-            }
-
-            // 保存进度到本地
-            SaveLastStepLocally(currentStepIndex);
-
-            // 展示下一步
-            ShowCurrentStep();
+            if (next >= steps.Length) { FinishTutorial(); return; }
+            AdvanceToStep(next);
         }
 
         private void FinishTutorial()
         {
             state = TutorialState.Completed;
-            Debug.Log("[TutorialManager] 新手引导全部完成！");
-
-            // 保存完成状态
             SaveCompletionLocally();
-
-            // 关闭引导面板
+            StopAllCoroutines();
             if (tutorialPanel != null)
             {
                 tutorialPanel.ForceFinish();
                 UIManager.Instance.ClosePanel("TutorialPanel");
                 tutorialPanel = null;
             }
-
-            // 清理事件监听
-            UnregisterAllEventListeners();
-
-            // 触发引导完成事件
-            EventBus.Trigger(Constants.GameEvents.UI_PANEL_CLOSED, "TutorialPanel");
-
-            // 回调
+            UnregisterGameEvents();
             onTutorialComplete?.Invoke();
         }
 
         // ============================================================
-        // 条件等待
+        // 挂起与恢复
         // ============================================================
 
-        private void StartConditionWaiting()
+        private void SuspendStep()
         {
-            if (currentStep == null || string.IsNullOrEmpty(currentStep.TriggerCondition))
+            state = TutorialState.Suspended;
+            if (conditionCoroutine != null) StopCoroutine(conditionCoroutine);
+            conditionCoroutine = StartCoroutine(ConditionLoop());
+        }
+
+        private void TryResumeFromSuspended()
+        {
+            if (state != TutorialState.Suspended || currentStepConfig == null) return;
+            if (CheckCondition(currentStepConfig))
             {
-                AdvanceToNextStep();
-                return;
+                if (conditionCoroutine != null) StopCoroutine(conditionCoroutine);
+                AdvanceToStep(currentStepIndex);
             }
+        }
 
-            isWaitingForCondition = true;
-            state = TutorialState.Waiting;
-            listeningEventName = currentStep.TriggerCondition;
-
-            Debug.Log($"[TutorialManager] 等待条件触发: {listeningEventName}");
-
-            // 显示提示文本（如果在面板上）
-            if (tutorialPanel != null)
+        private IEnumerator ConditionLoop()
+        {
+            while (state == TutorialState.Suspended && currentStepConfig != null)
             {
-                tutorialPanel.gameObject.SetActive(true);
-                tutorialPanel.ShowStep(currentStep, currentStepIndex, allSteps.Count);
+                if (CheckCondition(currentStepConfig)) { AdvanceToStep(currentStepIndex); yield break; }
+                yield return new WaitForSeconds(CHECK_INTERVAL);
             }
-
-            // 恢复为 Running 状态（面板仍然可见）
-            state = TutorialState.Running;
         }
 
         // ============================================================
-        // 回调方法 —— 由 TutorialPanel 调用
+        // 条件检测
         // ============================================================
 
-        private void OnStepCompleteCallback(int stepId)
+        private bool CheckCondition(TutorialStepConfig step)
         {
-            if (state != TutorialState.Running) return;
-
-            Debug.Log($"[TutorialManager] 步骤完成回调: step_id={stepId}");
-            AdvanceToNextStep();
+            if (step == null) return false;
+            switch (step.triggerType)
+            {
+                case "level":     return PlayerPrefs.GetInt("player_level", 1) >= step.triggerValue;
+                case "building":  return UIManager.Instance.IsPanelOpen(Constants.PanelNames.MAIN_CITY);
+                case "battle":    return triggeredEvents.Contains(Constants.GameEvents.BATTLE_START);
+                case "gacha":     return PlayerPrefs.GetInt("total_gacha_pulls", 0) >= step.triggerValue;
+                case "quest":     return UIManager.Instance.IsPanelOpen(Constants.PanelNames.CARD_DETAIL)
+                                       || triggeredEvents.Contains(Constants.GameEvents.CARD_ACQUIRED);
+                case "social":    return triggeredEvents.Contains(Constants.GameEvents.GUILD_JOINED);
+                case "resource":  return triggeredEvents.Contains(Constants.GameEvents.RESOURCE_CHANGED);
+                default: return true;
+            }
         }
 
-        private void OnTutorialSkipCallback()
+        // ============================================================
+        // 回调
+        // ============================================================
+
+        private void OnStepComplete(int stepId) { if (state == TutorialState.Running) AdvanceToNextStep(); }
+
+        private void OnSkip()
         {
             if (state != TutorialState.Running) return;
+            if (currentStepConfig != null && currentStepConfig.isRequired) return; // 必做步骤不可跳过
 
             state = TutorialState.Skipped;
-            Debug.Log("[TutorialManager] 用户跳过了新手引导");
+            StartCoroutine(QuestApi.SkipTutorial(r => { }));
+            PlayerPrefs.SetInt(PP_SKIPPED, 1); PlayerPrefs.Save();
+            StopAllCoroutines();
 
-            // 通知服务端
-            StartCoroutine(QuestApi.SkipTutorial((result) =>
-            {
-                if (result != null && result.IsSuccess())
-                {
-                    Debug.Log("[TutorialManager] 跳过引导上报成功");
-                }
-                else
-                {
-                    Debug.LogWarning($"[TutorialManager] 跳过引导上报失败: {result?.message}");
-                }
-            }));
-
-            // 保存跳过状态
-            PlayerPrefs.SetInt(PP_TUTORIAL_SKIPPED, 1);
-            PlayerPrefs.Save();
-
-            // 关闭面板
             if (tutorialPanel != null)
             {
                 tutorialPanel.ForceFinish();
                 UIManager.Instance.ClosePanel("TutorialPanel");
                 tutorialPanel = null;
             }
-
-            UnregisterAllEventListeners();
+            UnregisterGameEvents();
             onTutorialComplete?.Invoke();
         }
 
-        private void OnTutorialFinishCallback()
-        {
-            FinishTutorial();
-        }
+        private void OnFinish() { FinishTutorial(); }
 
         // ============================================================
-        // 事件监听（自动推进条件步骤）
+        // 事件监听
         // ============================================================
 
-        private void RegisterEventListener(string eventName)
+        private void RegisterGameEvents()
         {
-            if (string.IsNullOrEmpty(eventName)) return;
-            EventBus.Register(eventName, OnGameEventTriggered);
-        }
-
-        private void UnregisterEventListener(string eventName)
-        {
-            if (string.IsNullOrEmpty(eventName)) return;
-            EventBus.Unregister(eventName, OnGameEventTriggered);
-        }
-
-        private void UnregisterAllEventListeners()
-        {
-            // 注销所有可能的引导相关事件
-            string[] tutorialEvents = {
-                Constants.GameEvents.BATTLE_VICTORY,
-                Constants.GameEvents.CARD_ACQUIRED,
-                Constants.GameEvents.GUILD_JOINED,
-                Constants.GameEvents.PLAYER_DATA_UPDATED,
-                Constants.GameEvents.RESOURCE_CHANGED,
-                Constants.GameEvents.UI_PANEL_OPENED
+            var events = new[] {
+                Constants.GameEvents.PLAYER_LOGIN, Constants.GameEvents.PLAYER_DATA_UPDATED,
+                Constants.GameEvents.BATTLE_START, Constants.GameEvents.BATTLE_VICTORY,
+                Constants.GameEvents.BATTLE_DEFEAT, Constants.GameEvents.CARD_ACQUIRED,
+                Constants.GameEvents.GUILD_JOINED, Constants.GameEvents.RESOURCE_CHANGED,
+                Constants.GameEvents.UI_PANEL_OPENED, Constants.GameEvents.UI_PANEL_CLOSED
             };
-
-            foreach (string evt in tutorialEvents)
-            {
-                EventBus.Unregister(evt, OnGameEventTriggered);
-            }
+            foreach (var e in events) EventBus.Register(e, OnGameEvent);
         }
 
-        private void OnGameEventTriggered()
+        private void OnGameEvent() { if (state == TutorialState.Suspended) TryResumeFromSuspended(); }
+
+        private void UnregisterGameEvents()
         {
-            // 此方法通过 TriggerGameEvent 处理
-            // 也可在此监听 EventBus 事件并转发
+            var events = new[] {
+                Constants.GameEvents.PLAYER_LOGIN, Constants.GameEvents.PLAYER_DATA_UPDATED,
+                Constants.GameEvents.BATTLE_START, Constants.GameEvents.BATTLE_VICTORY,
+                Constants.GameEvents.BATTLE_DEFEAT, Constants.GameEvents.CARD_ACQUIRED,
+                Constants.GameEvents.GUILD_JOINED, Constants.GameEvents.RESOURCE_CHANGED,
+                Constants.GameEvents.UI_PANEL_OPENED, Constants.GameEvents.UI_PANEL_CLOSED
+            };
+            foreach (var e in events) EventBus.Unregister(e, OnGameEvent);
         }
 
         // ============================================================
-        // 本地持久化
+        // 辅助
         // ============================================================
 
-        private bool IsTutorialFinishedLocally()
+        private IEnumerator DelayedShow(float delay)
         {
-            return PlayerPrefs.GetInt(PP_TUTORIAL_COMPLETED, 0) == 1;
+            yield return new WaitForSeconds(delay);
+            if (state == TutorialState.Waiting && currentStepConfig != null) ShowCurrentStepOnPanel();
+            autoShowCoroutine = null;
         }
+
+        private int FindIndexByKey(string key)
+        {
+            if (steps == null || string.IsNullOrEmpty(key)) return -1;
+            for (int i = 0; i < steps.Length; i++) if (steps[i].stepKey == key) return i;
+            return -1;
+        }
+
+        private void StopAllCoroutines()
+        {
+            if (conditionCoroutine != null) { StopCoroutine(conditionCoroutine); conditionCoroutine = null; }
+            if (autoShowCoroutine != null) { StopCoroutine(autoShowCoroutine); autoShowCoroutine = null; }
+        }
+
+        // ============================================================
+        // 持久化
+        // ============================================================
+
+        private bool IsTutorialFinishedLocally() => PlayerPrefs.GetInt(PP_COMPLETED, 0) == 1;
 
         private void SaveCompletionLocally()
         {
-            PlayerPrefs.SetInt(PP_TUTORIAL_COMPLETED, 1);
-            PlayerPrefs.DeleteKey(PP_TUTORIAL_LAST_STEP);
-            PlayerPrefs.Save();
-            Debug.Log("[TutorialManager] 完成状态已保存到本地");
+            PlayerPrefs.SetInt(PP_COMPLETED, 1);
+            PlayerPrefs.DeleteKey(PP_CURRENT); PlayerPrefs.Save();
         }
 
-        private void SaveLastStepLocally(int stepIndex)
+        private void SaveProgress()
         {
-            PlayerPrefs.SetInt(PP_TUTORIAL_LAST_STEP, stepIndex);
-            PlayerPrefs.Save();
+            PlayerPrefs.SetString(PP_COMPLETED, string.Join(",", new List<string>(completedSteps.Keys).ToArray()));
+            PlayerPrefs.SetInt(PP_CURRENT, currentStepIndex); PlayerPrefs.Save();
+        }
+
+        private void LoadProgress()
+        {
+            string list = PlayerPrefs.GetString(PP_COMPLETED, "");
+            completedSteps.Clear();
+            if (!string.IsNullOrEmpty(list))
+                foreach (var k in list.Split(','))
+                    if (!string.IsNullOrEmpty(k.Trim())) completedSteps[k.Trim()] = true;
+            currentStepIndex = PlayerPrefs.GetInt(PP_CURRENT, 0);
         }
     }
 }
