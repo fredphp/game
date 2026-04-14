@@ -1,0 +1,32 @@
+server:
+  port: 9100
+  mode: debug
+
+database:
+  host: 127.0.0.1
+  port: 3306
+  user: root
+  password: ""
+  admin_db: admin_db
+  log_db: log_db
+  game_db: jiuzhou_game
+  max_open_conns: 20
+  max_idle_conns: 10
+
+redis:
+  addr: 127.0.0.1:6379
+  password: ""
+  db: 1
+  pool_size: 10
+
+jwt:
+  secret: "jiuzhou-admin-jwt-secret-2025"
+  expire_hours: 24
+  refresh_expire_days: 7
+
+gateway:
+  addr: "127.0.0.1:8080"
+
+log:
+  level: info
+  file: logs/admin-service.log

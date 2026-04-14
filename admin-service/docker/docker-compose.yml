@@ -1,0 +1,53 @@
+version: '3.8'
+services:
+  admin-service:
+    build: .
+    container_name: jiuzhou-admin
+    ports:
+      - "9100:9100"
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      - ./config:/app/config
+      - ./logs:/app/logs
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - jiuzhou
+    restart: unless-stopped
+
+  mysql:
+    image: mysql:8.0
+    container_name: jiuzhou-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init-db:/docker-entrypoint-initdb.d
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    networks:
+      - jiuzhou
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: jiuzhou-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --requirepass ""
+    volumes:
+      - redis_data:/data
+    networks:
+      - jiuzhou
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+  redis_data:
+
+networks:
+  jiuzhou:
+    driver: bridge

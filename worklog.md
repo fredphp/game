@@ -151,3 +151,210 @@ Stage Summary:
 - 活动: S/A/B/C四级体系，月收入¥108,000/千人
 - 留存: D1=55%, D7=35%, D30=25%，7日任务链+社交绑定+月卡循环
 - 经济: 免费月产1.2万钻(约6.7十连)，付费月产2.76万钻，差距比2.3×
+
+---
+Task ID: admin-layout
+Agent: main
+Task: Create admin layout component for 九州争鼎 admin management system
+
+Work Log:
+- Created `/src/components/admin/admin-layout.tsx` — full admin shell layout component
+- Built left sidebar using shadcn Sidebar components (collapsible="icon" mode)
+- Sidebar header: amber Crown icon + "九州争鼎 / 后台管理系统" branding
+- Sidebar content: 12 menu items from `@/lib/admin-data` with dynamic lucide-react icon mapping
+- Active menu item highlighted with warm amber accent (bg-amber-600/10 + text-amber-700 dark mode)
+- Sidebar footer: user avatar with fallback "管" character, name & role display
+- SidebarRail for hover-to-expand interaction
+- Top header bar: SidebarTrigger, vertical separator, Breadcrumb (hidden on mobile), notification bell with amber Badge count "5", user avatar dropdown
+- Notification dropdown: 3 sample notification items
+- User dropdown: admin name/email, profile link, red "退出登录" with LogOut icon
+- SidebarInset wraps main content area with sticky header + content padding
+- Responsive: sidebar auto-collapses to Sheet overlay on mobile (built-in shadcn behavior)
+- Dark mode support via shadcn CSS variables (sidebar-foreground, sidebar-border, sidebar-accent, etc.)
+- ESLint passes with zero errors
+
+Stage Summary:
+- 1 file created: `src/components/admin/admin-layout.tsx` (~240 lines)
+- Props interface: `{ activeMenu: string; onMenuChange: (menuId: string) => void; children: React.ReactNode }`
+- Uses 12 shadcn/sidebar sub-components, DropdownMenu, Avatar, Badge, Separator, Breadcrumb
+- 12 lucide-react icons mapped dynamically from admin-data menuItems
+- Amber/gold accent color scheme throughout — no blue/indigo
+- Fully responsive + dark mode ready
+
+---
+Task ID: admin-dashboard-pages
+Agent: main
+Task: Create dashboard-page.tsx and analytics-page.tsx for 九州争鼎 admin dashboard
+
+Work Log:
+- Created `/src/components/admin/dashboard-page.tsx` — comprehensive dashboard overview page
+- Stats Cards Row: 4 metric cards (DAU 89,245 +5.2%, Revenue ¥356,800 +8.5%, New Users 1,234 -2.1%, Online 12,856 with live dot)
+  - Each card has gradient background, icon, large bold value, change badge (green/red), border color matching theme
+  - Amber for DAU, emerald for revenue, sky for users, violet for online — no blue/indigo
+- Charts Section: 2-column grid with DAU LineChart (30 days) and Revenue BarChart (30 days) using recharts + shadcn ChartContainer
+- Quick Stats Grid: 3-column cards — Retention (1-day/7-day/30-day), Payment (ARPU/Pay Rate/Orders), Game (Draws/Battles/Avg Online)
+- Recent Activity Table: Last 5 GM operations from mockGmLogs with Time, Operator, Action, Target, Detail columns
+- Created `/src/components/admin/analytics-page.tsx` — advanced analytics page
+- Retention Chart: LineChart with 3 lines (1-day/7-day/30-day retention) over 30 days, generated retention7/30 from retention1 ratios
+- Gacha Statistics: ComposedChart with violet bars (total draws) + amber line (SSR rate) using dual Y-axes
+- Revenue Breakdown: Donut PieChart (innerRadius=60, outerRadius=95) showing diamond 60%, monthly 15%, gift 15%, VIP 10%
+- Real-time Metrics: 4 cards in 2x2 grid — Peak Concurrent, Avg Session Length, Total Battles Today, Total Gacha Pulls Today
+- User Funnel: Visual horizontal bar funnel — Registration → Tutorial → First Battle → First Purchase → Day 7 Retention with drop-off percentages
+- All chart data sourced from @/lib/admin-data (mockDailyStats, mockGachaStats, mockDashboardStats, mockGmLogs)
+- ESLint passes with zero errors
+
+Stage Summary:
+- 2 files created: `src/components/admin/dashboard-page.tsx` (~270 lines), `src/components/admin/analytics-page.tsx` (~300 lines)
+- Both are 'use client' components, responsive design with shadcn/ui + Tailwind CSS 4
+- Charts use recharts (LineChart, BarChart, ComposedChart, PieChart) wrapped in shadcn ChartContainer with tooltips/legends
+- Color scheme: amber/orange (DAU), emerald/green (revenue), sky (users), violet (online), rose (negative metrics) — no blue/indigo
+
+---
+Task ID: admin-page-components
+Agent: main
+Task: Create three admin page components (users, payment, roles) for 九州争鼎 admin system
+
+Work Log:
+- Created `/src/components/admin/users-page.tsx` — User Management page
+  - Search/Filter Bar: search input (nickname/UID), server select, status select, VIP level select (0-10), search & reset buttons
+  - Data Table: 12 columns (UID, Nickname, Level, VIP, Power, Diamond, Gold, Guild, Server, Status, Last Login, Actions)
+  - Status badges: green=正常, red=封禁, amber=冻结 using colored Badge components
+  - Actions column: View Detail (Eye icon), Ban/Unban (Ban/ShieldOff icons), Edit Resources (Gem icon)
+  - Pagination: full page number display with first/prev/next/last navigation
+  - User Detail Dialog: comprehensive user info grid (basic info, resources, hero collection, battle stats, login history)
+  - Edit Resources Dialog: diamond/gold/stamina input fields with increment support, required reason textarea
+  - Ban/Unban AlertDialog: confirmation with descriptive text, contextual action button colors
+  - Local filtering of mockGameUsers (50 records) based on all filter inputs
+
+- Created `/src/components/admin/payment-page.tsx` — Payment & Orders Management page
+  - Summary Cards (4): Today Revenue ¥35,680, Today Orders 1,567, Pending Orders 12, Refund Rate 0.3%
+  - Each card with icon, trend indicator (up/down arrow), colored icon background
+  - Tab switching between "订单管理" and "收入统计" using shadcn Tabs
+  - Filter Bar: date range inputs, order status select (5 states), product type select (4 types), order number search, export button
+  - Orders Table: 9 columns (Order No, User, Product, Amount, Diamond, Status, Pay Method, Time, Actions)
+  - Status badges: amber=pending, emerald=paid, sky=delivered, red=refunded, gray=closed
+  - Actions: View detail, Refund (for paid orders), Manual Deliver (for paid orders)
+  - Order Detail Dialog: complete order info with 12 field grid
+  - Revenue Tab: recharts BarChart showing 7-day revenue trend with emerald bars, formatted Y-axis (¥X万)
+  - Revenue summary stats: 7-day total, daily average, peak day, growth rate
+  - Pagination for orders table
+
+- Created `/src/components/admin/roles-page.tsx` — RBAC Role & Permission Management page
+  - 3 tabs: 角色管理, 权限管理, 管理员列表
+  - Role Management: 2-column card grid showing all 5 roles with name, code, description, permission count, member count, status
+  - Create/Edit Role Dialog: role name/code inputs, description textarea, status Switch toggle
+  - Permission Tree: checkboxes grouped by 12 modules with parent-child grouping, select-all per module
+  - Selected permission count display, required validation on name/code
+  - Delete Role AlertDialog
+  - Permission Table: 7 columns (Name, Code, Type badge, Parent, Sort, Status, Actions)
+  - Add/Edit Permission Dialog: name, code, type select (menu/button/api), parent select
+  - Delete Permission AlertDialog
+  - Admin Users Table: 7 columns with role badges, enable/disable toggle actions
+  - Mock admin users data with 6 sample admin accounts
+
+- Updated `/src/app/page.tsx` — main page with tab navigation integrating all 3 admin pages
+  - Header with branded logo, admin name, avatar
+  - Tab navigation using shadcn Tabs with icon+label triggers
+  - Sticky footer with version info
+
+- Fixed pre-existing lint error in `guilds-page.tsx` (React Hook called after early return)
+
+Stage Summary:
+- 3 new files created in `src/components/admin/`
+  - users-page.tsx (~370 lines): full user CRUD with search, filter, pagination, detail/edit/ban dialogs
+  - payment-page.tsx (~330 lines): orders management with summary cards, recharts bar chart, tab switching
+  - roles-page.tsx (~430 lines): RBAC management with role cards, permission table, admin user list, tree checkboxes
+- Updated page.tsx to serve as admin page container with tab navigation
+- All components use 'use client' directive, shadcn/ui components, Tailwind CSS 4
+- No blue/indigo colors — emerald, amber, red, purple, stone accent palette
+- ESLint passes with zero errors
+- Dev server compiles and serves pages successfully (200 OK)
+
+---
+Task ID: admin-page-v2
+Agent: main
+Task: Create four admin page components (card-pool, heroes, map, guilds) for 九州争鼎 admin system
+
+Work Log:
+- Created `/src/components/admin/card-pool-page.tsx` — Card Pool Management page
+  - Pool List as Cards in 2-col desktop / 1-col mobile grid layout
+  - Each card: pool name, type badge (normal/limited/faction/start/mix with distinct colors), status badge (green=开启, gray=关闭), time range
+  - Probability display: colored bars for SSR (amber), SR (purple), R (stone) with percentage labels
+  - UP hero indicator with Zap icon in amber highlight box
+  - Stats row: total draws (万), today draws with icons
+  - Edit and Toggle status action buttons on each card
+  - Expandable Pool Detail View: 4 stat cards (total/today/soft pity/hard pity), 7-day draw history bar chart with gradient bars
+  - Create/Edit Pool Dialog: pool name, type select (5 types), description textarea, probability inputs (SSR/SR/R) with live validation (sum must = 100%), pity settings, UP hero select (SSR heroes only), date range pickers, status Switch toggle
+  - ScrollArea for long dialog content
+
+- Created `/src/components/admin/heroes-page.tsx` — Hero Management page
+  - Filter Bar: search input (name/title), rarity select (all/SSR/SR/R), faction select (all/魏/蜀/吴/群), type select (all/步兵/骑兵/弓兵/谋士)
+  - Hero Table: 13 columns — avatar placeholder (rarity-colored gradient), name, title, rarity badge (gold/purple/gray), faction badge (sky/emerald/red/stone), type, ATK/DEF/HP/SPD stats (colored: red/sky/emerald/amber), growth shorthand (+Atk/Def/Hp), draw count, actions
+  - Row hover reveals Edit (Pencil) and View Skills (Eye) action buttons
+  - Hero Edit Dialog: basic info (name, title, rarity, faction, type), base stats (ATK/DEF/HP/Speed), growth values (Atk/Def/Hp), skills section with form/JSON tab switcher, JSON textarea editor with formatted preview, status toggle
+  - Skills Viewer Dialog: list of skill cards with icon, name, damage, type badge
+  - useMemo for efficient client-side filtering
+
+- Created `/src/components/admin/map-page.tsx` — Map Console page
+  - Map Controls card: season badge (S3, remaining days), city count, reset map button with AlertDialog confirmation
+  - Map Overview: 6×6 grid of interactive city cells
+  - Each cell: level badge (Lv.1-5 with colored border), faction color dot, city name, star rating (★☆), owner name
+  - Faction colors: sky=魏, emerald=蜀, red=吴, amber=群, stone=中立
+  - Level colors: stone(1), sky(2), emerald(3), purple(4), amber(5)
+  - Legend bar with faction dots and star level explanation
+  - City Detail Dialog: faction badge, owner/guild cards, resource type/level/defense/garrison stat cards, management actions (Change Owner, Modify Resources, Adjust Level) with inline form panels
+  - March Queue Table: 7 columns — player name, from→to route with chevron, troops, hero, status badge (amber=marching, emerald=arrived, sky=returning, gray=cancelled), arrive time, cancel action (marching only)
+
+- Created `/src/components/admin/guilds-page.tsx` — Guild Management page
+  - Guild List Table: 9 columns — rank (gold/silver/bronze circle for top 3), name with Shield icon, leader with Crown icon, members, level badge, cities, total power (万), notice (truncated), actions
+  - Row hover reveals View Members, Edit, Disband action buttons
+  - Guild Detail Dialog: overview card (8 stats in 4×2 grid: rank, level, members, cities, power, exp, leader, created date), notice section, member list table (6 columns: nickname, level, power, role, contribution, last active)
+  - Role badges: leader=gold, vice_leader=purple, elder=sky, member=gray
+  - Guild Edit Dialog: level/maxMembers inputs, notice textarea, leader transfer input with warning, save/cancel
+  - Disband AlertDialog: confirmation with descriptive warning text
+
+- Updated `/src/app/page.tsx` — tab navigation container for all 4 admin pages
+  - Sticky header with amber LayoutDashboard icon and branded title
+  - Tabs component with 4 tab triggers (卡池管理, 武将管理, 地图控制台, 联盟管理)
+  - Responsive tab labels (full text on sm+, abbreviated on mobile)
+  - Sticky footer with version text
+
+Stage Summary:
+- 4 new files created in `src/components/admin/`
+  - card-pool-page.tsx (~310 lines): pool cards grid, create/edit dialog with probability validation, expandable detail with 7-day chart
+  - heroes-page.tsx (~290 lines): filter bar, hero table with colored stats, edit dialog with JSON skill editor, skills viewer
+  - map-page.tsx (~260 lines): 6×6 interactive city grid, city detail dialog with management actions, march queue table with status badges
+  - guilds-page.tsx (~280 lines): guild table with rank badges, detail dialog with member list, edit dialog, disband confirmation
+- All components use 'use client', shadcn/ui (Card, Table, Dialog, Badge, Button, Input, Select, Label, Textarea, Tabs, Alert, AlertDialog, ScrollArea, Switch, Separator), Tailwind CSS 4
+- No blue/indigo colors — amber, emerald, purple, red, sky, stone accent palette
+- Color-coded throughout: rarity (gold/purple/gray), faction (sky/emerald/red/amber), status (green/gray/amber), stats (red/sky/emerald/amber)
+- ESLint passes with zero errors
+- Dev server compiles and serves pages successfully (200 OK)
+
+---
+Task ID: admin-service
+Agent: general-purpose
+Task: Create database schemas and Go backend service code for 九州争鼎 admin-service
+
+Work Log:
+- Created 18 files for admin-service (Go backend + SQL schemas + Docker + config)
+- SQL Schema: 2 databases (admin_db with 7 tables + RBAC seed data, log_db with 4 tables + sharding stored procedures)
+- Go Backend: Gin framework on port 9100 with JWT auth, RBAC middleware, CORS
+- pkg/: response (unified JSON), mysql (dual DB init), redis, jwt (generate/parse)
+- internal/model/: 30+ structs (AdminUser, Role, Permission, GlobalConfig, ActivityConfig, Order, Log types, Request/Response types)
+- internal/dao/: GORM-based CRUD for admin_db tables + sharded table helpers (GetOrderTableName, GetGmLogTableName, etc.)
+- internal/service/: GatewayClient HTTP proxy to 5 game services (user/card/map/guild/payment) with GET/POST/PUT/DELETE
+- internal/handler/: 38 handler functions covering all admin operations (login, user mgmt, card pool, hero, map, guild, orders, analytics, logs, config, activities, RBAC)
+- internal/router/: 1 public + 40 protected REST endpoints under /api/v1/admin/
+- internal/middleware/: JWT auth + RBAC check + CORS
+- Docker: multi-stage Dockerfile (golang:1.22-alpine → alpine:3.19) + docker-compose (admin + MySQL 8.0 + Redis 7)
+- go.mod: gin, golang-jwt/v5, gorm, go-redis, yaml.v3, crypto/bcrypt
+
+Stage Summary:
+- admin-service/ complete with 18 files (10 Go, 2 SQL, 2 YAML, 1 Dockerfile, 1 docker-compose, 1 go.mod, 1 config.yaml)
+- Port: 9100, Databases: admin_db + log_db, Redis DB: 1
+- REST API: 41 endpoints (1 public login + 40 JWT-protected)
+- RBAC: 5 default roles (super_admin, ops_admin, customer_service, data_analyst, game_designer)
+- Sharding: orders by month (orders_YYYY_MM), GM logs by month, user actions by month, login logs by day
+- GM Audit: all critical operations (ban, resource modify, map reset, guild disband, refund, config change) logged to gm_operation_log
+- Gateway: HTTP proxy to user/card/map/guild/payment microservices with graceful fallback

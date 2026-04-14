@@ -14,24 +14,24 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "九州争鼎 — SLG卡牌游戏架构方案",
-  description: "Go微服务 + Unity客户端全栈SLG卡牌游戏《九州争鼎》完整项目架构文档，包含11个核心微服务、网关设计、Docker部署方案。",
-  keywords: ["SLG", "卡牌游戏", "Go微服务", "Unity", "MySQL", "Redis", "Docker", "游戏架构"],
+  title: "九州争鼎 — 后台管理系统",
+  description: "SLG卡牌游戏《九州争鼎》生产级后台管理系统，包含RBAC权限、用户管理、卡池配置、地图控制、充值支付、数据统计等核心运营功能。",
+  keywords: ["SLG", "后台管理", "RBAC", "游戏运营", "数据统计", "九州争鼎"],
   authors: [{ name: "Z.ai Team" }],
   icons: {
     icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
   },
   openGraph: {
-    title: "九州争鼎 — SLG卡牌游戏架构方案",
-    description: "Go微服务 + Unity客户端全栈SLG卡牌游戏架构",
+    title: "九州争鼎 — 后台管理系统",
+    description: "SLG卡牌游戏《九州争鼎》生产级后台管理系统",
     url: "https://chat.z.ai",
     siteName: "Z.ai",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "九州争鼎 — SLG卡牌游戏架构方案",
-    description: "Go微服务 + Unity客户端全栈SLG卡牌游戏架构",
+    title: "九州争鼎 — 后台管理系统",
+    description: "SLG卡牌游戏《九州争鼎》生产级后台管理系统",
   },
 };
 
