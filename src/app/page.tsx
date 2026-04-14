@@ -5,11 +5,10 @@ import { motion } from 'framer-motion'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import {
-  Copy, Check, ChevronDown, Database, Server, Shield, Swords,
-  Zap, ArrowRight, Clock, FileCode, Target,
-  Crown, Users, User, Star, ShieldCheck, Award, ScrollText,
-  Flame, Timer, Flag, Handshake, TrendingUp, Rocket,
-  type LucideIcon,
+  Copy, Check, ChevronDown, Database, Server, Shield,
+  Zap, ArrowRight, Clock, FileCode,
+  CreditCard, Lock, Wallet, Gift, Crown, X, AlertTriangle,
+  Timer, RefreshCw, type LucideIcon,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -38,251 +37,295 @@ function CodeBlock({ code, lang = 'go', filename }: { code: string; lang: string
   )
 }
 
-// ===== Section 2: 联盟角色系统 =====
-const guildRoles = [
-  { role: '盟主', en: 'Leader', icon: Crown, color: 'border-amber-400 bg-amber-50/40 dark:bg-amber-950/10', iconColor: 'text-amber-500', badgeColor: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-300', permissions: ['解散联盟', '转让盟主', '任命/罢免副盟主', '联盟宣战/停战', '联盟科技升级', '修改公告/宣言', '审批/拒绝入盟', '驱逐成员'] },
-  { role: '副盟主', en: 'Vice Leader', icon: ShieldCheck, color: 'border-purple-400 bg-purple-50/40 dark:bg-purple-950/10', iconColor: 'text-purple-500', badgeColor: 'bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-300', permissions: ['审批/拒绝入盟', '修改联盟公告', '任命/罢免长老', '发起联盟战争', '联盟科技管理', '驱逐成员', '编辑联盟信息'] },
-  { role: '长老', en: 'Elder', icon: Star, color: 'border-sky-400 bg-sky-50/40 dark:bg-sky-950/10', iconColor: 'text-sky-500', badgeColor: 'bg-sky-500/10 text-sky-700 dark:text-sky-400 border-sky-300', permissions: ['审批/拒绝入盟', '修改联盟公告', '推荐成员入盟', '查看联盟日志', '联盟外交协助'] },
-  { role: '成员', en: 'Member', icon: User, color: 'border-stone-400 bg-stone-50/40 dark:bg-stone-950/10', iconColor: 'text-stone-500', badgeColor: 'bg-stone-500/10 text-stone-700 dark:text-stone-400 border-stone-300', permissions: ['查看联盟信息', '退出联盟', '参与联盟战争', '发起/加入协作战斗', '查看个人贡献', '申请升级'] },
+// ===== Section 2: 订单状态机 =====
+const orderStates = [
+  { code: 0, name: 'Pending', zh: '待支付', icon: Clock, color: 'border-amber-300 bg-amber-50/40 dark:bg-amber-950/10', iconColor: 'text-amber-500', desc: '订单已创建，等待用户支付', transitions: ['Paid → 已支付', 'Closed → 超时关闭'] },
+  { code: 1, name: 'Paid', zh: '已支付', icon: CreditCard, color: 'border-emerald-300 bg-emerald-50/40 dark:bg-emerald-950/10', iconColor: 'text-emerald-500', desc: '支付成功，等待发货', transitions: ['Delivered → 已发货', 'Refunded → 已退款'] },
+  { code: 2, name: 'Delivered', zh: '已发货', icon: Check, color: 'border-sky-300 bg-sky-50/40 dark:bg-sky-950/10', iconColor: 'text-sky-500', desc: '商品已发放到用户账户', transitions: ['Refunded → 已退款'] },
+  { code: 3, name: 'Refunded', zh: '已退款', icon: RefreshCw, color: 'border-purple-300 bg-purple-50/40 dark:bg-purple-950/10', iconColor: 'text-purple-500', desc: '订单已退款，钻石已回收', transitions: ['终态，无后续转换'] },
+  { code: 4, name: 'Closed', zh: '已关闭', icon: X, color: 'border-stone-300 bg-stone-50/40 dark:bg-stone-950/10', iconColor: 'text-stone-500', desc: '超时未支付或用户取消', transitions: ['终态，无后续转换'] },
 ]
 
-// ===== Section 3: 联盟管理流程 =====
-const manageFlow = [
-  { step: 1, icon: Rocket, title: '创建联盟', desc: '输入联盟名称、标签\n撰写联盟宣言', color: 'text-amber-500' },
-  { step: 2, icon: Users, title: '招募成员', desc: '开放招募/邀请模式\n设置入盟条件', color: 'text-purple-500' },
-  { step: 3, icon: ShieldCheck, title: '审批加入', desc: '长老以上角色审批\n自动审批模式可选', color: 'text-sky-500' },
-  { step: 4, icon: Crown, title: '角色管理', desc: '任命副盟主/长老\n权限分层管理', color: 'text-orange-500' },
-  { step: 5, icon: TrendingUp, title: '联盟升级', desc: '积累联盟经验\n解锁成员上限', color: 'text-emerald-500' },
+// ===== Section 3: 防重复支付机制 =====
+const antiDuplicate = [
+  { title: 'Redis 幂等锁', sub: '3s TTL', icon: Lock, color: 'border-red-300 bg-red-50/40 dark:bg-red-950/10', iconColor: 'text-red-500', desc: '同用户同商品3秒内不允许重复下单', detail: 'Key: pay:idempotent:{userID}:{productID}\nTTL: 3秒\n重复请求直接返回已有订单' },
+  { title: '回调去重表', sub: '唯一索引', icon: Database, color: 'border-emerald-300 bg-emerald-50/40 dark:bg-emerald-950/10', iconColor: 'text-emerald-500', desc: 'callback_id 唯一索引，重复回调直接返回成功', detail: 'payment_callbacks 表 callback_id UNIQUE KEY\nINSERT 失败 → 已处理 → 返回成功\n保证支付平台多次重试的幂等性' },
+  { title: '分布式锁', sub: 'SETNX 30s', icon: Shield, color: 'border-amber-300 bg-amber-50/40 dark:bg-amber-950/10', iconColor: 'text-amber-500', desc: 'Redis SETNX 30s 锁，防止并发回调处理', detail: 'Key: pay:lock:{orderNo}\nTTL: 30 秒\n防止同一订单并发处理导致重复发货' },
+  { title: '状态机校验', sub: 'Pending→Paid', icon: AlertTriangle, color: 'border-sky-300 bg-sky-50/40 dark:bg-sky-950/10', iconColor: 'text-sky-500', desc: '只有 Pending→Paid 合法，非 Pending 静默成功返回', detail: '非 Pending 状态 → 不执行业务\n静默返回成功（幂等设计）\n避免回调报错触发支付平台告警' },
 ]
 
-// ===== Section 4: 联盟战争 =====
-const warPhases = [
-  { phase: '宣战', en: 'Declaration', icon: Flag, duration: '2小时准备', desc: '向目标联盟发起宣战，选择争夺城池，进入2小时准备期', color: 'text-red-500', bgColor: 'border-red-200 bg-red-50/40 dark:bg-red-950/10' },
-  { phase: '战斗', en: 'Battle', icon: Swords, duration: '24小时', desc: '双方联盟成员可对目标城池发起协作战斗，争夺城池控制权', color: 'text-orange-500', bgColor: 'border-orange-200 bg-orange-50/40 dark:bg-orange-950/10' },
-  { phase: '结算', en: 'Settlement', icon: Award, duration: '即时结算', desc: '计算双方总积分，高分方获得城池控制权，分配战争奖励', color: 'text-emerald-500', bgColor: 'border-emerald-200 bg-emerald-50/40 dark:bg-emerald-950/10' },
+// ===== Section 4: 充值档位 =====
+const rechargeTiers = [
+  { yuan: 6, diamond: 60, bonus: 0, tag: '首充', color: 'border-stone-300 bg-stone-50/40 dark:bg-stone-950/10', tagColor: 'bg-stone-500/10 text-stone-600 border-stone-300' },
+  { yuan: 30, diamond: 330, bonus: 30, tag: '+30', color: 'border-green-300 bg-green-50/40 dark:bg-green-950/10', tagColor: 'bg-green-500/10 text-green-600 border-green-300' },
+  { yuan: 68, diamond: 760, bonus: 60, tag: '+60', color: 'border-sky-300 bg-sky-50/40 dark:bg-sky-950/10', tagColor: 'bg-sky-500/10 text-sky-600 border-sky-300' },
+  { yuan: 128, diamond: 1460, bonus: 180, tag: '+180', color: 'border-purple-300 bg-purple-50/40 dark:bg-purple-950/10', tagColor: 'bg-purple-500/10 text-purple-600 border-purple-300' },
+  { yuan: 328, diamond: 3800, bonus: 680, tag: '+680', color: 'border-amber-300 bg-amber-50/40 dark:bg-amber-950/10', tagColor: 'bg-amber-500/10 text-amber-600 border-amber-300' },
+  { yuan: 648, diamond: 7680, bonus: 1680, tag: '超值', color: 'border-emerald-300 bg-emerald-50/40 dark:bg-emerald-950/10', tagColor: 'bg-emerald-500/10 text-emerald-600 border-emerald-300' },
 ]
 
-// ===== Section 5: 战斗协作机制 =====
-const coopFlow = [
-  { step: 1, icon: Handshake, title: '发起协作', desc: '选择战争中的目标城池\n投入兵力发起协作', color: 'text-purple-500' },
-  { step: 2, icon: Users, title: '组队协作', desc: '最多5人加入协作\n每人投入兵力', color: 'text-sky-500' },
-  { step: 3, icon: TrendingUp, title: '协作加成', desc: '发起者+15% / 协作者+8%\n5人满编最高+47%', color: 'text-emerald-500' },
-  { step: 4, icon: Zap, title: '开战触发', desc: '满3人30秒自动开战\n超时10分钟强制开战', color: 'text-amber-500' },
-  { step: 5, icon: Award, title: '结算分配', desc: '按兵力比例分配贡献\n贡献转化战争积分', color: 'text-orange-500' },
+// ===== Section 5: 商品类型 =====
+const productTypes = [
+  { name: '钻石充值', en: 'Diamond Recharge', icon: CreditCard, color: 'border-emerald-300 bg-emerald-50/40 dark:bg-emerald-950/10', iconColor: 'text-emerald-500', desc: '即时到账', detail: '6 档充值金额，即时到账\n首次充值双倍钻石奖励\n支持支付宝/微信支付' },
+  { name: '月卡', en: 'Monthly Card (30元)', icon: Gift, color: 'border-sky-300 bg-sky-50/40 dark:bg-sky-950/10', iconColor: 'text-sky-500', desc: '30天每日100💎', detail: '30元购买，立即获得 300💎\n后续 30 天每日可领取 100💎\n累计获得 3300💎，超高性价比' },
+  { name: '礼包', en: 'Gift Packs', icon: Wallet, color: 'border-amber-300 bg-amber-50/40 dark:bg-amber-950/10', iconColor: 'text-amber-500', desc: '新手/成长/每周', detail: '新手礼包：一次性购买\n成长礼包：按等级解锁\n每周礼包：每周重置购买' },
+  { name: 'VIP礼包', en: 'VIP Packages', icon: Crown, color: 'border-purple-300 bg-purple-50/40 dark:bg-purple-950/10', iconColor: 'text-purple-500', desc: '经验值+每日奖励', detail: '5 级 VIP 体系\n充值累积 VIP 经验值\n每日可领取 VIP 专属奖励' },
 ]
 
-// ===== Section 6: 联盟等级 =====
-const guildLevels = [
-  { level: 'Lv1', name: '初创联盟', members: 30, exp: 0, color: 'border-stone-300 bg-stone-50/40 dark:bg-stone-950/10', textColor: 'text-stone-500' },
-  { level: 'Lv2', name: '成长联盟', members: 35, exp: 1000, color: 'border-green-300 bg-green-50/40 dark:bg-green-950/10', textColor: 'text-green-500' },
-  { level: 'Lv3', name: '精英联盟', members: 40, exp: 5000, color: 'border-sky-300 bg-sky-50/40 dark:bg-sky-950/10', textColor: 'text-sky-500' },
-  { level: 'Lv4', name: '霸主联盟', members: 45, exp: 15000, color: 'border-purple-300 bg-purple-50/40 dark:bg-purple-950/10', textColor: 'text-purple-500' },
-  { level: 'Lv5', name: '帝王联盟', members: 50, exp: 50000, color: 'border-amber-300 bg-amber-50/40 dark:bg-amber-950/10', textColor: 'text-amber-500' },
-]
-
-// ===== Section 7: 联盟科技 =====
-const guildTechs = [
-  { key: 'attack_boost', name: '攻击强化', desc: '全体成员攻击力提升', levels: ['+2%', '+4%', '+6%', '+8%', '+10%'] },
-  { key: 'defense_boost', name: '防御强化', desc: '全体成员防御力提升', levels: ['+2%', '+4%', '+6%', '+8%', '+10%'] },
-  { key: 'march_speed', name: '行军加速', desc: '全体成员行军速度提升', levels: ['+3%', '+6%', '+9%', '+12%', '+15%'] },
-  { key: 'resource_boost', name: '资源增产', desc: '联盟领地产出提升', levels: ['+5%', '+10%', '+15%', '+20%', '+25%'] },
-  { key: 'recruit_speed', name: '征兵加速', desc: '全体成员征兵速度提升', levels: ['+3%', '+6%', '+9%', '+12%', '+15%'] },
-  { key: 'garrison_limit', name: '驻军扩充', desc: '联盟城池最大驻军提升', levels: ['+10%', '+20%', '+30%', '+40%', '+50%'] },
-  { key: 'scout_range', name: '侦查强化', desc: '侦查获取更多情报', levels: ['Lv1', 'Lv2', 'Lv3', 'Lv4', 'Lv5'] },
-  { key: 'war_bonus', name: '战争增益', desc: '联盟战争积分加成', levels: ['+5%', '+10%', '+15%', '+20%', '+25%'] },
-]
-
-// ===== Section 8: REST API =====
+// ===== Section 6: REST API =====
 const apiList = [
-  { method: 'POST', path: '/api/v1/guild/create', auth: true, desc: '创建联盟', color: 'bg-purple-500',
-    req: `{\n  "name": "魏武天下",\n  "tag": "魏武",\n  "declaration": "挟天子以令诸侯"\n}`,
-    res: `{\n  "code": 0,\n  "data": {\n    "guild_id": 1001,\n    "name": "魏武天下",\n    "tag": "魏武",\n    "declaration": "挟天子以令诸侯",\n    "level": 1,\n    "member_count": 1,\n    "max_members": 30,\n    "experience": 0,\n    "creator_id": 5001,\n    "created_at": "2025-01-15T10:00:00Z"\n  }\n}` },
-  { method: 'GET', path: '/api/v1/guild/list', auth: false, desc: '联盟列表', color: 'bg-sky-500',
-    res: `{\n  "code": 0,\n  "data": {\n    "guilds": [\n      {\n        "guild_id": 1001,\n        "name": "魏武天下",\n        "tag": "魏武",\n        "level": 3,\n        "member_count": 28,\n        "max_members": 40,\n        "declaration": "挟天子以令诸侯"\n      }\n    ],\n    "total": 42,\n    "page": 1,\n    "page_size": 20\n  }\n}` },
-  { method: 'POST', path: '/api/v1/guild/join', auth: true, desc: '加入联盟', color: 'bg-green-500',
-    req: `{\n  "guild_id": 1001,\n  "message": "久仰大名，请求加入"\n}`,
-    res: `{\n  "code": 0,\n  "data": {\n    "application_id": 8001,\n    "guild_id": 1001,\n    "user_id": 5002,\n    "status": "pending",\n    "message": "久仰大名，请求加入",\n    "created_at": "2025-01-15T10:30:00Z"\n  }\n}` },
-  { method: 'POST', path: '/api/v1/guild/war/declare', auth: true, desc: '宣战', color: 'bg-red-500',
-    req: `{\n  "target_guild_id": 2,\n  "target_city_id": 5\n}`,
-    res: `{\n  "code": 0,\n  "data": {\n    "war_id": "WAR-20250115-001",\n    "attacker_guild_id": 1001,\n    "defender_guild_id": 2,\n    "target_city_id": 5,\n    "status": "preparation",\n    "start_time": "2025-01-15T12:00:00Z",\n    "end_time": "2025-01-16T12:00:00Z",\n    "prep_end_time": "2025-01-15T14:00:00Z"\n  }\n}` },
-  { method: 'POST', path: '/api/v1/guild/war/coop/initiate', auth: true, desc: '发起协作战斗', color: 'bg-orange-500',
-    req: `{\n  "war_id": "WAR-20250115-001",\n  "city_id": 5,\n  "army_power": 3000\n}`,
-    res: `{\n  "code": 0,\n  "data": {\n    "battle_id": "BTL-20250115-001",\n    "war_id": "WAR-20250115-001",\n    "city_id": 5,\n    "status": "gathering",\n    "initiator_id": 5001,\n    "initiator_power": 3000,\n    "current_bonus": 0.15,\n    "participant_count": 1,\n    "max_participants": 5,\n    "auto_start_time": null\n  }\n}` },
-  { method: 'POST', path: '/api/v1/guild/war/coop/join', auth: true, desc: '加入协作', color: 'bg-amber-500',
-    req: `{\n  "battle_id": "BTL-20250115-001",\n  "army_power": 2000\n}`,
-    res: `{\n  "code": 0,\n  "data": {\n    "battle_id": "BTL-20250115-001",\n    "participant_count": 2,\n    "current_bonus": 0.23,\n    "total_army_power": 5000,\n    "effective_power": 6150\n  }\n}` },
-  { method: 'GET', path: '/api/v1/guild/:id/logs', auth: false, desc: '联盟日志', color: 'bg-stone-500',
-    res: `{\n  "code": 0,\n  "data": {\n    "guild_id": 1001,\n    "logs": [\n      {\n        "log_id": 9001,\n        "action": "member_join",\n        "operator_id": 5001,\n        "target_id": 5002,\n        "detail": "成员 曹操(5002) 加入联盟",\n        "created_at": "2025-01-15T10:35:00Z"\n      },\n      {\n        "log_id": 9002,\n        "action": "war_declare",\n        "operator_id": 5001,\n        "detail": "向联盟 蜀汉忠义(2) 宣战",\n        "created_at": "2025-01-15T12:00:00Z"\n      }\n    ],\n    "total": 256\n  }\n}` },
+  { method: 'GET', path: '/api/v1/pay/tiers', auth: false, desc: '充值档位列表', color: 'bg-sky-500',
+    res: `{\n  "code": 0,\n  "data": {\n    "tiers": [\n      {"tier_id": 1, "yuan": 6, "diamond": 60, "bonus": 0, "tag": "首充"},\n      {"tier_id": 2, "yuan": 30, "diamond": 330, "bonus": 30, "tag": "+30"},\n      {"tier_id": 3, "yuan": 68, "diamond": 760, "bonus": 60, "tag": "+60"},\n      {"tier_id": 4, "yuan": 128, "diamond": 1460, "bonus": 180, "tag": "+180"},\n      {"tier_id": 5, "yuan": 328, "diamond": 3800, "bonus": 680, "tag": "+680"},\n      {"tier_id": 6, "yuan": 648, "diamond": 7680, "bonus": 1680, "tag": "超值"}\n    ]\n  }\n}` },
+  { method: 'POST', path: '/api/v1/pay/recharge', auth: true, desc: '创建充值订单', color: 'bg-emerald-500',
+    req: `{\n  "tier_id": 3,\n  "product_type": "diamond"\n}`,
+    res: `{\n  "code": 0,\n  "data": {\n    "order_no": "PAY20250115100300001",\n    "user_id": 5001,\n    "product_type": "diamond",\n    "tier_id": 3,\n    "yuan": 68,\n    "diamond": 760,\n    "bonus": 60,\n    "status": 0,\n    "pay_url": "https://pay.example.com/checkout/PAY2025...",\n    "expire_at": "2025-01-15T10:18:00Z",\n    "created_at": "2025-01-15T10:03:00Z"\n  }\n}` },
+  { method: 'POST', path: '/api/v1/pay/callback', auth: false, desc: '支付回调(无JWT)', color: 'bg-amber-500',
+    req: `{\n  "callback_id": "CB_20250115_001",\n  "order_no": "PAY20250115100300001",\n  "trade_no": "WX_20250115000450001",\n  "status": "success",\n  "paid_at": "2025-01-15T10:04:32Z",\n  "sign": "a1b2c3d4e5..."}\n}`,
+    res: `{\n  "code": 0,\n  "message": "success"\n}` },
+  { method: 'GET', path: '/api/v1/pay/order/:orderNo', auth: true, desc: '订单详情', color: 'bg-purple-500',
+    res: `{\n  "code": 0,\n  "data": {\n    "order_no": "PAY20250115100300001",\n    "user_id": 5001,\n    "product_type": "diamond",\n    "tier_id": 3,\n    "yuan": 68,\n    "diamond": 760,\n    "bonus": 60,\n    "status": 1,\n    "status_text": "已支付",\n    "trade_no": "WX_20250115000450001",\n    "paid_at": "2025-01-15T10:04:32Z",\n    "delivered_at": "2025-01-15T10:04:33Z",\n    "created_at": "2025-01-15T10:03:00Z"\n  }\n}` },
+  { method: 'POST', path: '/api/v1/pay/refund', auth: true, desc: '申请退款', color: 'bg-red-500',
+    req: `{\n  "order_no": "PAY20250115100300001",\n  "reason": "误操作充值"\n}`,
+    res: `{\n  "code": 0,\n  "data": {\n    "refund_no": "REF20250115100500001",\n    "order_no": "PAY20250115100300001",\n    "refund_amount": 68,\n    "diamond_deducted": 820,\n    "status": 0,\n    "created_at": "2025-01-15T10:05:00Z"\n  }\n}` },
+  { method: 'GET', path: '/api/v1/pay/monthly', auth: true, desc: '月卡信息', color: 'bg-sky-500',
+    res: `{\n  "code": 0,\n  "data": {\n    "is_active": true,\n    "expire_at": "2025-02-14T10:00:00Z",\n    "total_days": 30,\n    "claimed_days": 15,\n    "remaining_days": 15,\n    "daily_diamond": 100,\n    "today_claimed": true\n  }\n}` },
+  { method: 'POST', path: '/api/v1/pay/monthly/claim', auth: true, desc: '月卡领取', color: 'bg-green-500',
+    res: `{\n  "code": 0,\n  "data": {\n    "diamond_gained": 100,\n    "total_diamond": 1500,\n    "claimed_days": 16,\n    "remaining_days": 14\n  }\n}` },
+  { method: 'GET', path: '/api/v1/pay/vip', auth: true, desc: 'VIP信息', color: 'bg-amber-500',
+    res: `{\n  "code": 0,\n  "data": {\n    "vip_level": 3,\n    "vip_exp": 4200,\n    "next_level_exp": 5000,\n    "total_recharge": 520,\n    "daily_reward_claimed": false,\n    "daily_reward": {\n      "diamond": 50,\n      "resource_bonus": 0.15\n    },\n    "benefits": [\n      {"type": "diamond", "value": 50, "desc": "每日50钻石"},\n      {"type": "resource_bonus", "value": "15%", "desc": "资源产出+15%"}\n    ]\n  }\n}` },
+  { method: 'GET', path: '/api/v1/pay/wallet/logs', auth: true, desc: '钱包流水', color: 'bg-stone-500',
+    res: `{\n  "code": 0,\n  "data": {\n    "current_diamond": 1500,\n    "logs": [\n      {\n        "id": 9001,\n        "type": "recharge",\n        "amount": 820,\n        "balance": 1500,\n        "desc": "充值68元 760+60钻石",\n        "created_at": "2025-01-15T10:04:33Z"\n      },\n      {\n        "id": 9002,\n        "type": "monthly_claim",\n        "amount": 100,\n        "balance": 1680,\n        "desc": "月卡每日领取",\n        "created_at": "2025-01-15T08:00:00Z"\n      }\n    ],\n    "total": 128,\n    "page": 1,\n    "page_size": 20\n  }\n}` },
+  { method: 'GET', path: '/api/v1/pay/milestones', auth: true, desc: '成长基金', color: 'bg-emerald-500',
+    res: `{\n  "code": 0,\n  "data": {\n    "milestones": [\n      {"level": 1, "recharge": 50, "reward": 100, "claimed": true},\n      {"level": 2, "recharge": 200, "reward": 500, "claimed": true},\n      {"level": 3, "recharge": 500, "reward": 1500, "claimed": false},\n      {"level": 4, "recharge": 1000, "reward": 3500, "claimed": false},\n      {"level": 5, "recharge": 3000, "reward": 12000, "claimed": false}\n    ],\n    "total_recharge": 520\n  }\n}` },
 ]
 
-// ===== Section 9: 数据库 =====
+// ===== Section 7: 数据库 =====
 const dbTables = [
-  { name: 'guilds', desc: '联盟表', fields: ['guild_id (主键)', 'name (联盟名称)', 'tag (联盟标签)', 'declaration (联盟宣言)', 'level (1~5)', 'member_count / max_members', 'experience (经验值)', 'creator_id (创建者)', 'announcement (公告)'] },
-  { name: 'guild_members', desc: '成员表', fields: ['id (主键)', 'guild_id → guilds', 'user_id (用户)', 'role (leader/vice/elder/member)', 'join_time (加入时间)', 'contribution (贡献值)', 'last_active'] },
-  { name: 'guild_applications', desc: '入盟申请', fields: ['id (主键)', 'guild_id → guilds', 'user_id (申请人)', 'status (pending/approved/rejected)', 'message (申请留言)', 'reviewer_id (审批人)', 'created_at'] },
-  { name: 'guild_wars', desc: '联盟战争', fields: ['war_id (UUID主键)', 'attacker_guild / defender_guild', 'target_city_id (目标城池)', 'status (preparation/active/settled)', 'attacker_score / defender_score', 'start_time / end_time', 'prep_end_time', 'result'] },
-  { name: 'guild_war_battles', desc: '协作战斗', fields: ['battle_id (UUID主键)', 'war_id → guild_wars', 'city_id (城池)', 'status (gathering/fighting/settled)', 'initiator_id (发起者)', 'coop_bonus (协作加成)', 'attacker_power / defender_power', 'result (胜/负)', 'contributions_json'] },
-  { name: 'guild_log', desc: '操作日志', fields: ['log_id (主键)', 'guild_id → guilds', 'action (操作类型)', 'operator_id (操作者)', 'target_id (目标对象)', 'detail (详情JSON)', 'created_at'] },
-  { name: 'guild_technologies', desc: '联盟科技', fields: ['id (主键)', 'guild_id → guilds', 'tech_key (科技标识)', 'level (1~5)', 'unlocked (是否解锁)', 'unlock_time', 'updated_at'] },
+  { name: 'payment_orders', desc: '订单表', fields: ['order_no (唯一订单号)', 'user_id (用户)', 'product_type (diamond/monthly/gift/vip)', 'tier_id (充值档位)', 'yuan (金额分)', 'diamond (钻石)', 'bonus (赠送)', 'status (0待付1已付2已发3退4关)', 'trade_no (第三方流水号)', 'paid_at / delivered_at', 'expire_at (超时时间)'] },
+  { name: 'payment_callbacks', desc: '回调日志(防重放)', fields: ['id (主键)', 'callback_id (唯一·防重放)', 'order_no → payment_orders', 'trade_no (第三方)', 'raw_body (原始请求JSON)', 'sign (签名)', 'processed TINYINT', 'created_at', 'UNIQUE KEY uk_callback (callback_id)'] },
+  { name: 'user_monthly_cards', desc: '月卡', fields: ['id (主键)', 'user_id (用户)', 'is_active (是否激活)', 'start_date / expire_date', 'total_days (30)', 'claimed_days (已领天数)', 'daily_diamond (100)', 'purchased_at'] },
+  { name: 'user_gift_purchases', desc: '礼包购买', fields: ['id (主键)', 'user_id (用户)', 'gift_key (礼包标识)', 'gift_name (名称)', 'price_yuan (价格)', 'contents_json (内容JSON)', 'purchase_time'] },
+  { name: 'user_vip_records', desc: 'VIP记录', fields: ['id (主键)', 'user_id (用户)', 'vip_level (1~5)', 'vip_exp (经验值)', 'total_recharge (累计充值)', 'last_claim_date', 'updated_at'] },
+  { name: 'user_wallet_logs', desc: '钱包流水', fields: ['id (主键)', 'user_id (用户)', 'type (recharge/claim/spend/refund)', 'amount (变动数量)', 'balance (变动后余额)', 'desc (描述)', 'ref_order_no (关联订单)', 'created_at'] },
+  { name: 'growth_fund_milestones', desc: '成长基金', fields: ['id (主键)', 'user_id (用户)', 'level (里程碑等级)', 'recharge_required (所需累计)', 'reward_diamond (奖励)', 'claimed (是否已领)', 'claimed_at'] },
+  { name: 'refund_records', desc: '退款记录', fields: ['refund_no (退款单号)', 'order_no → payment_orders', 'user_id (用户)', 'refund_amount (退款金额)', 'diamond_deducted (回收钻石)', 'status (0处理中1已退2已拒)', 'reason (退款原因)', 'created_at / processed_at'] },
 ]
 
-// ===== Section 10: 核心源码 =====
+// ===== Section 8: 核心源码 =====
 const sourceFiles = [
-  { name: 'main.go', desc: '服务入口 + 战争引擎启动' },
-  { name: 'war_engine.go', desc: '战争引擎核心 (350+ 行)' },
-  { name: 'guild_model.go', desc: '数据模型 (15个结构体)' },
-  { name: 'guild_dao.go', desc: '数据访问层 (40+方法)' },
-  { name: 'guild_service.go', desc: '业务逻辑' },
-  { name: 'guild_handler.go', desc: 'HTTP处理器 (18个接口)' },
-  { name: 'router.go', desc: '路由注册' },
-  { name: 'auth.go', desc: 'JWT中间件' },
-  { name: 'schema.sql', desc: '数据库建表 (7张)' },
+  { name: 'main.go', desc: '服务入口 + 路由注册' },
+  { name: 'payment_engine.go', desc: '支付引擎核心 (订单状态机 + 回调处理)' },
+  { name: 'payment_model.go', desc: '数据模型 (12个结构体)' },
+  { name: 'payment_dao.go', desc: '数据访问层 (35+方法)' },
+  { name: 'payment_service.go', desc: '业务逻辑 (充值/月卡/VIP)' },
+  { name: 'payment_handler.go', desc: 'HTTP处理器 (10个接口)' },
+  { name: 'router.go', desc: '路由注册 + JWT中间件' },
+  { name: 'idempotent.go', desc: '幂等锁 (Redis)' },
+  { name: 'callback_guard.go', desc: '回调防护 (去重+分布式锁)' },
+  { name: 'order_state.go', desc: '订单状态机' },
+  { name: 'delivery.go', desc: '异步发货引擎' },
+  { name: 'schema.sql', desc: '数据库建表 (8张)' },
   { name: 'config.yaml', desc: '服务配置' },
-  { name: 'mysql.go', desc: 'MySQL连接池' },
-  { name: 'redis.go', desc: 'Redis连接池' },
-  { name: 'jwt.go', desc: 'JWT工具' },
   { name: 'response.go', desc: '统一响应' },
 ]
 
-const warEngineCode = `// ExecuteCoopBattle 协作战斗计算
-func (e *WarEngine) ExecuteCoopBattle(ctx context.Context, battleID string) error {
-    battle, _ := e.dao.GetBattle(ctx, battleID)
+const stateMachineCode = `// 订单状态常量
+const (
+    OrderPending   int8 = 0 // 待支付
+    OrderPaid      int8 = 1 // 已支付
+    OrderDelivered int8 = 2 // 已发货
+    OrderRefunded  int8 = 3 // 已退款
+    OrderClosed    int8 = 4 // 已关闭
+)
 
-    // 1. 计算协作加成
-    coopBonus := 0.15 // 发起者 +15%
-    coopBonus += float64(len(battle.Participants)-1) * 0.08 // 每个协作者 +8%
+// ValidTransitions 合法状态转换表
+var ValidTransitions = map[int8][]int8{
+    OrderPending:   {OrderPaid, OrderClosed},
+    OrderPaid:      {OrderDelivered, OrderRefunded},
+    OrderDelivered: {OrderRefunded},
+}
 
-    // 2. 进攻方有效战力 = 总兵力 × (1 + 协作加成)
-    totalArmy := battle.InitiatorPower + battle.TotalParticipantPower
-    attackerEffective := float64(totalArmy) * (1.0 + coopBonus)
-
-    // 3. 防守方有效战力 = 驻军 + 城防×50%
-    city, _ := e.mapDAO.GetCity(ctx, battle.CityID)
-    defenderPower := city.Garrison
-    cityDefense := float64(city.DefenseBonus * 10000)
-    defenderEffective := float64(defenderPower) + cityDefense*0.5
-
-    // 4. ±10% 随机浮动
-    randFactor := 0.90 + randomFloat()*0.20
-    attackerEffective *= randFactor
-    defenderEffective *= 0.90 + randomFloat()*0.20
-
-    // 5. 判定胜负
-    attackerWin := attackerEffective > defenderEffective
-    damageDealt := int(math.Min(attackerEffective, defenderEffective))
-
-    // 6. 胜利额外 +50 分
-    baseScore := damageDealt / 100
-    if attackerWin {
-        baseScore += 50
+// IsValidTransition 校验状态转换是否合法
+func IsValidTransition(from, to int8) bool {
+    validTos, ok := ValidTransitions[from]
+    if !ok {
+        return false
     }
-
-    // 7. 按贡献比例分配分数
-    for _, c := range battle.Contributors {
-        ratio := float64(c.Power) / float64(totalArmy)
-        score := int(float64(baseScore) * ratio)
-        e.dao.UpdateContribution(ctx, c.UserID, score)
+    for _, v := range validTos {
+        if v == to {
+            return true
+        }
     }
+    return false
+}
+
+// StatusText 状态码 → 中文描述
+var StatusText = map[int8]string{
+    OrderPending:   "待支付",
+    OrderPaid:      "已支付",
+    OrderDelivered: "已发货",
+    OrderRefunded:  "已退款",
+    OrderClosed:    "已关闭",
 }`
 
-const schemaSQL = `-- 联盟系统数据库建表脚本
--- 7 张表：联盟、成员、申请、战争、协作战斗、日志、科技
+const callbackCode = `// ProcessCallback 处理支付回调（防重放核心）
+func (e *PaymentEngine) ProcessCallback(ctx context.Context, cb *PaymentCallback) error {
+    // 1. 幂等检查: callback_id 唯一索引去重
+    if err := e.dao.CreateCallback(ctx, cb); err != nil {
+        if errors.Is(err, dao.ErrCallbackExists) {
+            log.Info("callback already processed", "callback_id", cb.CallbackID)
+            return nil // 幂等返回成功
+        }
+        return fmt.Errorf("create callback: %w", err)
+    }
 
-CREATE TABLE guilds (
-  guild_id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  name VARCHAR(30) NOT NULL COMMENT '联盟名称',
-  tag VARCHAR(10) NOT NULL COMMENT '联盟标签',
-  declaration TEXT COMMENT '联盟宣言',
-  level TINYINT DEFAULT 1 COMMENT '联盟等级 1~5',
-  member_count INT DEFAULT 1,
-  max_members INT DEFAULT 30,
-  experience BIGINT DEFAULT 0,
-  creator_id BIGINT NOT NULL,
-  announcement TEXT COMMENT '联盟公告',
-  status TINYINT DEFAULT 1 COMMENT '1正常 0解散',
-  created_at DATETIME DEFAULT NOW(),
-  updated_at DATETIME DEFAULT NOW() ON UPDATE NOW()
-);
+    // 2. 查询订单
+    order, err := e.dao.GetOrderByNo(ctx, cb.OrderNo)
+    if err != nil {
+        return fmt.Errorf("get order: %w", err)
+    }
 
-CREATE TABLE guild_members (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  guild_id BIGINT NOT NULL,
+    // 3. 状态机校验: Pending → Paid
+    if !model.IsValidTransition(order.Status, model.OrderPaid) {
+        log.Info("invalid transition, idempotent return",
+            "status", model.StatusText[order.Status])
+        return nil // 非 Pending 直接返回成功
+    }
+
+    // 4. Redis 分布式锁: 防止并发
+    lockKey := fmt.Sprintf("pay:lock:%s", cb.OrderNo)
+    locked, err := myredis.RDB.SetNX(ctx, lockKey, "1", 30*time.Second).Result()
+    if err != nil || !locked {
+        log.Warn("failed to acquire lock or duplicate", "order", cb.OrderNo)
+        return nil
+    }
+    defer myredis.RDB.Del(ctx, lockKey)
+
+    // 5. 更新订单状态 → Paid
+    if err := e.dao.UpdateOrderStatus(ctx, order.OrderNo, model.OrderPaid, cb.TradeNo); err != nil {
+        return fmt.Errorf("update order: %w", err)
+    }
+
+    // 6. 异步发货（投递到队列）
+    e.deliveryQueue <- &DeliveryTask{
+        OrderNo:  order.OrderNo,
+        UserID:   order.UserID,
+        Diamond:  order.Diamond + order.Bonus,
+        Type:     order.ProductType,
+    }
+
+    return nil
+}`
+
+const schemaSQL = `-- 支付系统数据库建表脚本
+-- 8 张表：订单、回调、月卡、礼包、VIP、钱包流水、成长基金、退款
+
+CREATE TABLE payment_orders (
+  order_no VARCHAR(64) PRIMARY KEY,
   user_id BIGINT NOT NULL,
-  role VARCHAR(20) DEFAULT 'member' COMMENT 'leader/vice/elder/member',
-  contribution INT DEFAULT 0,
-  join_time DATETIME DEFAULT NOW(),
-  last_active DATETIME,
-  UNIQUE KEY uk_guild_user (guild_id, user_id)
-);
-
-CREATE TABLE guild_applications (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  guild_id BIGINT NOT NULL,
-  user_id BIGINT NOT NULL,
-  status VARCHAR(20) DEFAULT 'pending' COMMENT 'pending/approved/rejected',
-  message TEXT,
-  reviewer_id BIGINT,
+  product_type VARCHAR(20) NOT NULL COMMENT 'diamond/monthly/gift/vip',
+  tier_id INT DEFAULT 0,
+  yuan INT NOT NULL COMMENT '金额(分)',
+  diamond INT NOT NULL DEFAULT 0 COMMENT '钻石',
+  bonus INT NOT NULL DEFAULT 0 COMMENT '赠送钻石',
+  status TINYINT DEFAULT 0 COMMENT '0待付1已付2已发3退4关',
+  trade_no VARCHAR(128) DEFAULT '' COMMENT '第三方流水号',
+  paid_at DATETIME,
+  delivered_at DATETIME,
+  expire_at DATETIME NOT NULL COMMENT '超时时间',
   created_at DATETIME DEFAULT NOW(),
-  reviewed_at DATETIME
-);
-
-CREATE TABLE guild_wars (
-  war_id VARCHAR(64) PRIMARY KEY,
-  attacker_guild BIGINT NOT NULL,
-  defender_guild BIGINT NOT NULL,
-  target_city_id INT NOT NULL,
-  status VARCHAR(20) DEFAULT 'preparation',
-  attacker_score INT DEFAULT 0,
-  defender_score INT DEFAULT 0,
-  start_time DATETIME,
-  end_time DATETIME,
-  prep_end_time DATETIME,
-  result VARCHAR(20),
-  created_at DATETIME DEFAULT NOW()
-);
-
-CREATE TABLE guild_war_battles (
-  battle_id VARCHAR(64) PRIMARY KEY,
-  war_id VARCHAR(64) NOT NULL,
-  city_id INT NOT NULL,
-  status VARCHAR(20) DEFAULT 'gathering',
-  initiator_id BIGINT NOT NULL,
-  initiator_power INT DEFAULT 0,
-  coop_bonus DECIMAL(4,3) DEFAULT 0,
-  total_participant_power INT DEFAULT 0,
-  participant_count INT DEFAULT 1,
-  attacker_power INT DEFAULT 0,
-  defender_power INT DEFAULT 0,
-  result VARCHAR(10),
-  contributions_json JSON,
-  auto_start_time DATETIME,
-  created_at DATETIME DEFAULT NOW()
-);
-
-CREATE TABLE guild_log (
-  log_id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  guild_id BIGINT NOT NULL,
-  action VARCHAR(50) NOT NULL,
-  operator_id BIGINT,
-  target_id BIGINT,
-  detail JSON,
-  created_at DATETIME DEFAULT NOW(),
-  INDEX idx_guild_time (guild_id, created_at)
-);
-
-CREATE TABLE guild_technologies (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  guild_id BIGINT NOT NULL,
-  tech_key VARCHAR(30) NOT NULL,
-  level TINYINT DEFAULT 0,
-  unlocked TINYINT DEFAULT 0,
-  unlock_time DATETIME,
   updated_at DATETIME DEFAULT NOW() ON UPDATE NOW(),
-  UNIQUE KEY uk_guild_tech (guild_id, tech_key)
+  INDEX idx_user_status (user_id, status),
+  INDEX idx_created (created_at)
+);
+
+CREATE TABLE payment_callbacks (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  callback_id VARCHAR(128) NOT NULL COMMENT '回调唯一标识',
+  order_no VARCHAR(64) NOT NULL,
+  trade_no VARCHAR(128) DEFAULT '',
+  raw_body JSON COMMENT '原始请求体',
+  sign VARCHAR(256) DEFAULT '',
+  processed TINYINT DEFAULT 0,
+  created_at DATETIME DEFAULT NOW(),
+  UNIQUE KEY uk_callback (callback_id),
+  INDEX idx_order (order_no)
+);
+
+CREATE TABLE user_monthly_cards (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  is_active TINYINT DEFAULT 1,
+  start_date DATE NOT NULL,
+  expire_date DATE NOT NULL,
+  total_days INT DEFAULT 30,
+  claimed_days INT DEFAULT 0,
+  daily_diamond INT DEFAULT 100,
+  purchased_at DATETIME DEFAULT NOW(),
+  UNIQUE KEY uk_user (user_id)
+);
+
+CREATE TABLE user_gift_purchases (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  gift_key VARCHAR(30) NOT NULL,
+  gift_name VARCHAR(50) NOT NULL,
+  price_yuan INT NOT NULL,
+  contents_json JSON NOT NULL,
+  purchase_time DATETIME DEFAULT NOW(),
+  UNIQUE KEY uk_user_gift (user_id, gift_key)
+);
+
+CREATE TABLE user_vip_records (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  vip_level TINYINT DEFAULT 0,
+  vip_exp INT DEFAULT 0,
+  total_recharge INT DEFAULT 0 COMMENT '累计充值(分)',
+  last_claim_date DATE,
+  updated_at DATETIME DEFAULT NOW() ON UPDATE NOW(),
+  UNIQUE KEY uk_user (user_id)
+);
+
+CREATE TABLE user_wallet_logs (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  type VARCHAR(20) NOT NULL COMMENT 'recharge/claim/spend/refund',
+  amount INT NOT NULL COMMENT '变动数量(+/-)',
+  balance INT NOT NULL COMMENT '变动后余额',
+  description VARCHAR(200) DEFAULT '',
+  ref_order_no VARCHAR(64) DEFAULT '',
+  created_at DATETIME DEFAULT NOW(),
+  INDEX idx_user_time (user_id, created_at)
+);
+
+CREATE TABLE growth_fund_milestones (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  level TINYINT NOT NULL,
+  recharge_required INT NOT NULL COMMENT '所需累计充值(分)',
+  reward_diamond INT NOT NULL,
+  claimed TINYINT DEFAULT 0,
+  claimed_at DATETIME,
+  UNIQUE KEY uk_user_level (user_id, level)
+);
+
+CREATE TABLE refund_records (
+  refund_no VARCHAR(64) PRIMARY KEY,
+  order_no VARCHAR(64) NOT NULL,
+  user_id BIGINT NOT NULL,
+  refund_amount INT NOT NULL COMMENT '退款金额(分)',
+  diamond_deducted INT NOT NULL COMMENT '回收钻石',
+  status TINYINT DEFAULT 0 COMMENT '0处理中1已退2已拒',
+  reason VARCHAR(200) DEFAULT '',
+  created_at DATETIME DEFAULT NOW(),
+  processed_at DATETIME,
+  INDEX idx_user (user_id),
+  INDEX idx_order (order_no)
 );`
 
 const configYaml = `server:
-  port: 9005
+  port: 9006
   mode: release
 
 database:
@@ -290,7 +333,7 @@ database:
   port: 3306
   user: root
   password: ""
-  dbname: jiuzhou_guild
+  dbname: jiuzhou_payment
   max_open_conns: 20
   max_idle_conns: 10
 
@@ -304,32 +347,19 @@ jwt:
   secret: "your-jwt-secret-key"
   expire_hours: 24
 
-guild:
-  max_name_length: 30
-  max_tag_length: 10
-  max_declaration_length: 200
-  default_max_members: 30
-  cooldown_after_leave: 24h
-  auto_approve: false
-
-war:
-  preparation_duration: 2h
-  battle_duration: 24h
-  max_concurrent_wars: 3
-  war_cooldown: 48h
-  surrender_enabled: true
-
-coop:
-  max_participants: 5
-  initiator_bonus: 0.15
-  participant_bonus: 0.08
-  auto_start_min: 3
-  auto_start_delay: 30s
-  force_start_timeout: 10m
+payment:
+  idempotent_ttl: 3s
+  order_expire: 15m
+  callback_lock_ttl: 30s
+  monthly_card_days: 30
+  monthly_daily_diamond: 100
+  vip_levels: 5
+  max_refund_hours: 24
+  delivery_queue_size: 1000
 
 log:
   level: info
-  file: logs/guild-service.log`
+  file: logs/payment-service.log`
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState(1)
@@ -342,55 +372,241 @@ export default function Home() {
           {/* ===== 1. Hero ===== */}
           <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-card via-card to-card/80 p-8 md:p-12">
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
-              <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-gradient-to-br from-violet-500/10 via-purple-500/5 to-transparent blur-3xl" />
-              <div className="absolute -bottom-24 -left-24 w-96 h-96 rounded-full bg-gradient-to-tr from-fuchsia-500/10 via-violet-500/5 to-transparent blur-3xl" />
+              <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-gradient-to-br from-emerald-500/10 via-green-500/5 to-transparent blur-3xl" />
+              <div className="absolute -bottom-24 -left-24 w-96 h-96 rounded-full bg-gradient-to-tr from-teal-500/10 via-emerald-500/5 to-transparent blur-3xl" />
             </div>
             <div className="relative z-10">
               <div className="flex items-center gap-3 mb-4">
-                <Badge variant="outline" className="border-violet-500/30 text-violet-600 dark:text-violet-400 bg-violet-500/5">Guild Service</Badge>
-                <Badge variant="outline" className="border-purple-500/30 text-purple-600 dark:text-purple-400 bg-purple-500/5">联盟系统</Badge>
+                <Badge variant="outline" className="border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5">Payment Service</Badge>
+                <Badge variant="outline" className="border-green-500/30 text-green-600 dark:text-green-400 bg-green-500/5">支付系统</Badge>
               </div>
               <h1 className="text-3xl md:text-4xl font-black">
-                <span className="bg-gradient-to-r from-violet-500 via-purple-400 to-fuchsia-500 bg-clip-text text-transparent">联盟系统微服务</span>
+                <span className="bg-gradient-to-r from-emerald-500 via-green-400 to-teal-500 bg-clip-text text-transparent">支付系统微服务</span>
               </h1>
-              <p className="mt-2 text-lg text-muted-foreground font-medium">Guild Service — 联盟管理 · 战争协作 · 领土争夺</p>
+              <p className="mt-2 text-lg text-muted-foreground font-medium">Payment Service — 充值订单 · 支付回调 · 月卡礼包 · VIP体系</p>
               <p className="mt-3 text-sm text-muted-foreground/80 max-w-2xl leading-relaxed">
-                基于 Go + 战争引擎的联盟协作系统。4种角色权限体系、5级联盟等级、协作战斗机制、
-                联盟战争宣战-战斗-结算全流程、8种联盟科技、城池争夺等核心功能。
+                基于 Go + 订单状态机的支付系统。6档充值体系、4层防重复支付保护、月卡30天每日领取、
+                礼包系统、VIP5级体系、成长基金、退款机制等完整支付链路。
               </p>
               <div className="mt-6 flex flex-wrap gap-2">
-                {['创建联盟', '角色权限', '联盟战争', '协作攻城', '入盟审批', '联盟科技', '5级等级', '4种角色'].map((t) => (
+                {['6档充值', '订单状态机', '防重复支付', '支付回调', '月卡30天', '礼包系统', 'VIP5级', '退款机制'].map((t) => (
                   <Badge key={t} variant="secondary" className="text-xs px-2.5 py-1">{t}</Badge>
                 ))}
               </div>
             </div>
           </motion.section>
 
-          {/* ===== 2. 联盟角色系统 ===== */}
+          {/* ===== 2. 订单状态机 ===== */}
           <motion.section initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="space-y-4">
-            <h2 className="text-2xl font-bold flex items-center gap-3">
-              <div className="w-1 h-8 rounded-full bg-gradient-to-b from-violet-500 to-purple-600" />
-              联盟角色系统
-            </h2>
+            <div className="flex items-center gap-3">
+              <div className="w-1 h-8 rounded-full bg-gradient-to-b from-emerald-500 to-green-600" />
+              <h2 className="text-2xl font-bold">订单状态机</h2>
+              <Badge variant="outline" className="border-emerald-300 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 text-xs">核心设计</Badge>
+            </div>
+
+            {/* State Flow Diagram */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-2">
+              {orderStates.map((s, i) => (
+                <div key={s.code} className="flex items-center gap-2 flex-shrink-0">
+                  <Card className={`border ${s.color} hover:shadow-sm transition-shadow min-w-[160px]`}>
+                    <CardHeader className="pb-1.5">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-xs font-bold flex items-center gap-1.5">
+                          <s.icon className={`w-3.5 h-3.5 ${s.iconColor}`} />
+                          {s.zh}
+                        </CardTitle>
+                        <Badge variant="outline" className={`text-[9px] font-mono ${s.iconColor} border-current/30`}>{s.code}</Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <p className="text-[10px] font-mono text-muted-foreground">{s.name}</p>
+                      <p className="text-[11px] text-muted-foreground mt-1">{s.desc}</p>
+                    </CardContent>
+                  </Card>
+                  {i < orderStates.length - 1 && (
+                    <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
+                      {i === 0 ? (
+                        <div className="flex flex-col items-center">
+                          <ArrowRight className="w-4 h-4 text-emerald-500" />
+                          <span className="text-[8px] text-emerald-500 font-mono">Paid</span>
+                        </div>
+                      ) : i === 1 ? (
+                        <div className="flex flex-col items-center">
+                          <ArrowRight className="w-4 h-4 text-sky-500" />
+                          <span className="text-[8px] text-sky-500 font-mono">Delivered</span>
+                        </div>
+                      ) : i === 2 ? (
+                        <div className="flex flex-col items-center">
+                          <ArrowRight className="w-4 h-4 text-purple-500" />
+                          <span className="text-[8px] text-purple-500 font-mono">Refund</span>
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Pending → Closed branch */}
+            <Card className="border-dashed border-amber-300 bg-amber-50/30 dark:bg-amber-950/10">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-bold flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-500" />
+                  Pending 分支说明
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-4 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-amber-500/10 text-amber-600 border-amber-300 text-[10px]">Pending(0)</Badge>
+                    <ArrowRight className="w-3 h-3 text-emerald-500" />
+                    <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-300 text-[10px]">Paid(1)</Badge>
+                    <span className="text-xs text-muted-foreground">正常支付</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-amber-500/10 text-amber-600 border-amber-300 text-[10px]">Pending(0)</Badge>
+                    <ArrowRight className="w-3 h-3 text-stone-500" />
+                    <Badge className="bg-stone-500/10 text-stone-600 border-stone-300 text-[10px]">Closed(4)</Badge>
+                    <span className="text-xs text-muted-foreground">15分钟超时 / 用户取消</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Transition Details Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {orderStates.map((s) => (
+                <Card key={s.code}>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-xs font-bold flex items-center gap-2">
+                        <s.icon className={`w-3.5 h-3.5 ${s.iconColor}`} />
+                        {s.name}
+                        <span className="text-[9px] text-muted-foreground font-mono">({s.code})</span>
+                      </CardTitle>
+                    </div>
+                    <CardDescription className="text-[11px]">{s.desc}</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-[10px] text-muted-foreground font-semibold mb-1">合法转换:</p>
+                    {s.transitions.map((t) => (
+                      <div key={t} className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                        <div className="w-1 h-1 rounded-full bg-emerald-500 flex-shrink-0" />
+                        {t}
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </motion.section>
+
+          {/* ===== 3. 防重复支付机制 ===== */}
+          <motion.section initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-1 h-8 rounded-full bg-gradient-to-b from-red-500 to-amber-600" />
+              <h2 className="text-2xl font-bold">防重复支付机制</h2>
+              <Badge variant="outline" className="border-red-300 text-red-600 dark:text-red-400 bg-red-500/5 text-xs">4层防护</Badge>
+            </div>
+
+            {/* Protection Flow */}
+            <Card className="border-dashed border-emerald-300 bg-emerald-50/30 dark:bg-emerald-950/10">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-bold flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-emerald-500" />
+                  回调处理链路
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                  {['支付平台回调', '→', '① 回调去重表', '→', '② 分布式锁', '→', '③ 状态机校验', '→', '④ 更新订单', '→', '⑤ 异步发货'].map((step, i) => (
+                    <span key={i}>
+                      {step === '→' ? (
+                        <ArrowRight className="w-4 h-4 text-emerald-500 mx-0.5 flex-shrink-0" />
+                      ) : (
+                        <Badge className={`text-[10px] flex-shrink-0 ${step.startsWith('①') || step.startsWith('②') || step.startsWith('③') || step.startsWith('④') || step.startsWith('⑤') ? 'bg-emerald-500/10 text-emerald-600 border-emerald-300' : 'bg-muted text-muted-foreground'}`}>{step}</Badge>
+                      )}
+                    </span>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {guildRoles.map((r) => (
-                <Card key={r.role} className={`border ${r.color} hover:shadow-sm transition-shadow`}>
+              {antiDuplicate.map((p) => (
+                <Card key={p.title} className={`border ${p.color} hover:shadow-sm transition-shadow`}>
                   <CardHeader className="pb-2">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-sm font-bold flex items-center gap-2">
-                        <r.icon className={`w-4 h-4 ${r.iconColor}`} />
-                        {r.role}
-                        <span className="text-[10px] text-muted-foreground font-normal font-mono">{r.en}</span>
+                        <p.icon className={`w-4 h-4 ${p.iconColor}`} />
+                        {p.title}
                       </CardTitle>
-                      <Badge className={`text-[10px] ${r.badgeColor}`}>{r.role}</Badge>
+                      <Badge variant="outline" className={`text-[10px] ${p.iconColor} border-current/30`}>{p.sub}</Badge>
+                    </div>
+                    <CardDescription className="text-xs">{p.desc}</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="p-3 rounded-lg bg-card border">
+                      <p className="text-[11px] font-mono text-muted-foreground whitespace-pre-line leading-relaxed">{p.detail}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </motion.section>
+
+          {/* ===== 4. 充值档位 ===== */}
+          <motion.section initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="space-y-4">
+            <h2 className="text-2xl font-bold flex items-center gap-3">
+              <div className="w-1 h-8 rounded-full bg-gradient-to-b from-emerald-500 to-teal-600" />
+              充值档位
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              {rechargeTiers.map((t) => (
+                <Card key={t.yuan} className={`border ${t.color} hover:shadow-sm transition-shadow`}>
+                  <CardContent className="pt-4 pb-4 text-center">
+                    <Badge variant="outline" className={`text-[10px] mb-2 ${t.tagColor}`}>{t.tag}</Badge>
+                    <p className="text-lg font-black text-emerald-600">{t.yuan}<span className="text-xs font-normal text-muted-foreground ml-0.5">元</span></p>
+                    <div className="mt-2 space-y-1 text-xs">
+                      <div className="flex items-center justify-center gap-1">
+                        <span className="text-muted-foreground">💎</span>
+                        <span className="font-mono font-bold">{t.diamond.toLocaleString()}</span>
+                      </div>
+                      {t.bonus > 0 && (
+                        <p className="text-[10px] text-amber-500 font-medium">+{t.bonus} 赠送</p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </motion.section>
+
+          {/* ===== 5. 商品类型 ===== */}
+          <motion.section initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="space-y-4">
+            <h2 className="text-2xl font-bold flex items-center gap-3">
+              <div className="w-1 h-8 rounded-full bg-gradient-to-b from-teal-500 to-emerald-600" />
+              商品类型
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {productTypes.map((p) => (
+                <Card key={p.name} className={`border ${p.color} hover:shadow-sm transition-shadow`}>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-sm font-bold flex items-center gap-2">
+                        <p.icon className={`w-4 h-4 ${p.iconColor}`} />
+                        {p.name}
+                        <span className="text-[10px] text-muted-foreground font-normal font-mono">{p.en}</span>
+                      </CardTitle>
+                      <Badge variant="outline" className={`text-[10px] ${p.iconColor} border-current/30`}>{p.desc}</Badge>
                     </div>
                   </CardHeader>
                   <CardContent>
                     <ul className="space-y-1.5">
-                      {r.permissions.map((p) => (
-                        <li key={p} className="text-xs text-muted-foreground flex items-center gap-2">
+                      {p.detail.split('\n').map((line) => (
+                        <li key={line} className="text-xs text-muted-foreground flex items-center gap-2">
                           <div className="w-1 h-1 rounded-full bg-current flex-shrink-0" />
-                          {p}
+                          {line}
                         </li>
                       ))}
                     </ul>
@@ -400,288 +616,10 @@ export default function Home() {
             </div>
           </motion.section>
 
-          {/* ===== 3. 联盟管理流程 ===== */}
+          {/* ===== 6. REST API ===== */}
           <motion.section initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="space-y-4">
             <h2 className="text-2xl font-bold flex items-center gap-3">
-              <div className="w-1 h-8 rounded-full bg-gradient-to-b from-purple-500 to-fuchsia-600" />
-              联盟管理流程
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-              {manageFlow.map((step) => (
-                <Card key={step.title} className="hover:shadow-sm transition-shadow relative">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-bold flex items-center gap-2">
-                      <span className="w-5 h-5 rounded-full bg-violet-100 dark:bg-violet-950 text-violet-600 dark:text-violet-400 flex items-center justify-center text-[10px] font-bold">{step.step}</span>
-                      <step.icon className={`w-4 h-4 ${step.color}`} />
-                      {step.title}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-xs text-muted-foreground whitespace-pre-line">{step.desc}</p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </motion.section>
-
-          {/* ===== 4. 联盟战争 ===== */}
-          <motion.section initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-1 h-8 rounded-full bg-gradient-to-b from-red-500 to-orange-600" />
-              <h2 className="text-2xl font-bold">联盟战争</h2>
-              <Badge variant="outline" className="border-red-300 text-red-600 dark:text-red-400 bg-red-500/5 text-xs">核心功能</Badge>
-            </div>
-
-            {/* War Phases */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {warPhases.map((w) => (
-                <Card key={w.phase} className={`border ${w.bgColor} hover:shadow-sm transition-shadow`}>
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-sm font-bold flex items-center gap-2">
-                        <w.icon className={`w-4 h-4 ${w.color}`} />
-                        {w.phase}
-                        <span className="text-[10px] text-muted-foreground font-normal font-mono">{w.en}</span>
-                      </CardTitle>
-                      <Badge variant="outline" className={`text-[10px] ${w.color} border-current/30`}>{w.duration}</Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-xs text-muted-foreground leading-relaxed">{w.desc}</p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-
-            {/* War Rules + Score */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Card className="border-dashed border-purple-300 bg-violet-50/30 dark:bg-violet-950/10">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-bold flex items-center gap-2">
-                    <ScrollText className="w-4 h-4 text-purple-500" />
-                    战争规则
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2">
-                    {[
-                      { label: '同时战争上限', value: '最多 3 场同时进行' },
-                      { label: '战争冷却', value: '48 小时冷却期' },
-                      { label: '投降机制', value: '防御方可主动投降' },
-                      { label: '城池争夺', value: '指定目标城池争夺控制权' },
-                      { label: '准备阶段', value: '2小时准备期内可撤回宣战' },
-                    ].map((r) => (
-                      <li key={r.label} className="text-xs flex items-start gap-2">
-                        <div className="w-1 h-1 rounded-full bg-purple-500 mt-1.5 flex-shrink-0" />
-                        <span><span className="font-semibold text-muted-foreground">{r.label}：</span><span className="text-muted-foreground">{r.value}</span></span>
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-
-              <Card className="border-dashed border-amber-300 bg-amber-50/30 dark:bg-amber-950/10">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-bold flex items-center gap-2">
-                    <TrendingUp className="w-4 h-4 text-amber-500" />
-                    积分系统
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="p-3 rounded-lg bg-card border text-xs">
-                      <p className="font-semibold text-muted-foreground mb-1">基础得分</p>
-                      <div className="flex items-center gap-2">
-                        <code className="font-mono text-amber-600 font-bold">伤害 / 100 = 基础分</code>
-                      </div>
-                      <p className="text-muted-foreground mt-1">战斗造成伤害除以100为本次得分</p>
-                    </div>
-                    <div className="p-3 rounded-lg bg-card border text-xs">
-                      <p className="font-semibold text-muted-foreground mb-1">胜利奖励</p>
-                      <div className="flex items-center gap-2">
-                        <code className="font-mono text-emerald-600 font-bold">胜方额外 +50 分</code>
-                      </div>
-                      <p className="text-muted-foreground mt-1">进攻方胜利额外获得50积分奖励</p>
-                    </div>
-                    <div className="p-3 rounded-lg bg-card border text-xs">
-                      <p className="font-semibold text-muted-foreground mb-1">结算规则</p>
-                      <p className="text-muted-foreground">24h结束时对比双方总分，高分方获得城池控制权</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </motion.section>
-
-          {/* ===== 5. 战斗协作机制 ===== */}
-          <motion.section initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-1 h-8 rounded-full bg-gradient-to-b from-fuchsia-500 to-violet-600" />
-              <h2 className="text-2xl font-bold">战斗协作机制</h2>
-              <Badge variant="outline" className="border-fuchsia-300 text-fuchsia-600 dark:text-fuchsia-400 bg-fuchsia-500/5 text-xs">核心创新</Badge>
-            </div>
-
-            {/* Coop Flow */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-              {coopFlow.map((step) => (
-                <Card key={step.title} className="hover:shadow-sm transition-shadow">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-bold flex items-center gap-2">
-                      <span className="w-5 h-5 rounded-full bg-fuchsia-100 dark:bg-fuchsia-950 text-fuchsia-600 dark:text-fuchsia-400 flex items-center justify-center text-[10px] font-bold">{step.step}</span>
-                      <step.icon className={`w-4 h-4 ${step.color}`} />
-                      {step.title}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-xs text-muted-foreground whitespace-pre-line">{step.desc}</p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-
-            {/* Formula + Auto-start */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Card className="border-dashed border-fuchsia-300 bg-fuchsia-50/30 dark:bg-fuchsia-950/10">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-bold flex items-center gap-2">
-                    <TrendingUp className="w-4 h-4 text-fuchsia-500" />
-                    协作加成公式
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="p-3 rounded-lg bg-card border">
-                    <code className="text-xs font-mono text-fuchsia-600 font-bold block leading-relaxed">
-                      进攻有效战力 = 总兵力 × (1 + 协作加成系数)
-                    </code>
-                  </div>
-                  <div className="space-y-2">
-                    {[
-                      { label: '发起者', value: '+15%', desc: '发起协作的玩家获得', color: 'text-amber-500' },
-                      { label: '每个协作者', value: '+8%', desc: '每个加入协作的成员', color: 'text-purple-500' },
-                      { label: '5人满编', value: '+47%', desc: '最高总协作加成', color: 'text-fuchsia-500' },
-                    ].map((b) => (
-                      <div key={b.label} className="flex items-center justify-between p-2.5 rounded-lg bg-card border text-xs">
-                        <div>
-                          <span className="font-semibold text-muted-foreground">{b.label}</span>
-                          <span className="text-muted-foreground ml-1.5">{b.desc}</span>
-                        </div>
-                        <code className={`font-mono font-bold ${b.color}`}>{b.value}</code>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="p-3 rounded-lg bg-card border">
-                    <p className="text-[11px] text-muted-foreground">
-                      <span className="font-semibold">贡献分配：</span>按每个成员投入兵力占总兵力的比例分配战斗得分
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-dashed border-amber-300 bg-amber-50/30 dark:bg-amber-950/10">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-bold flex items-center gap-2">
-                    <Zap className="w-4 h-4 text-amber-500" />
-                    自动开战规则
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="p-3 rounded-lg bg-card border text-xs">
-                    <p className="font-semibold text-muted-foreground mb-1">满员快速开战</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge className="bg-sky-500/10 text-sky-600 border-sky-300 text-[10px]">满 3 人</Badge>
-                      <ArrowRight className="w-3 h-3 text-muted-foreground" />
-                      <Badge className="bg-amber-500/10 text-amber-600 border-amber-300 text-[10px]">30 秒倒计时</Badge>
-                      <ArrowRight className="w-3 h-3 text-muted-foreground" />
-                      <Badge className="bg-red-500/10 text-red-600 border-red-300 text-[10px]">自动开战</Badge>
-                    </div>
-                    <p className="text-muted-foreground mt-2">达到3人参与后，30秒倒计时自动开战</p>
-                  </div>
-                  <div className="p-3 rounded-lg bg-card border text-xs">
-                    <p className="font-semibold text-muted-foreground mb-1">超时强制开战</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge className="bg-stone-500/10 text-stone-600 border-stone-300 text-[10px]">发起后</Badge>
-                      <ArrowRight className="w-3 h-3 text-muted-foreground" />
-                      <Badge className="bg-orange-500/10 text-orange-600 border-orange-300 text-[10px]">10 分钟</Badge>
-                      <ArrowRight className="w-3 h-3 text-muted-foreground" />
-                      <Badge className="bg-red-500/10 text-red-600 border-red-300 text-[10px]">强制开战</Badge>
-                    </div>
-                    <p className="text-muted-foreground mt-2">超时10分钟无论人数，强制开始战斗</p>
-                  </div>
-                  <div className="p-3 rounded-lg bg-card border text-xs">
-                    <p className="font-semibold text-muted-foreground mb-1">手动开战</p>
-                    <p className="text-muted-foreground">发起者可随时点击手动开战按钮（≥2人时）</p>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </motion.section>
-
-          {/* ===== 6. 联盟等级 ===== */}
-          <motion.section initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="space-y-4">
-            <h2 className="text-2xl font-bold flex items-center gap-3">
-              <div className="w-1 h-8 rounded-full bg-gradient-to-b from-emerald-500 to-sky-600" />
-              联盟等级
-            </h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-              {guildLevels.map((lv) => (
-                <Card key={lv.level} className={`border ${lv.color} hover:shadow-sm transition-shadow`}>
-                  <CardContent className="pt-4 pb-4 text-center">
-                    <Badge variant="outline" className={`text-xs font-bold mb-2 ${lv.textColor}`}>{lv.level}</Badge>
-                    <p className="font-bold text-sm">{lv.name}</p>
-                    <div className="mt-2 space-y-1.5 text-xs">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">成员上限</span>
-                        <span className="font-mono font-bold text-purple-600">{lv.members}人</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">升级经验</span>
-                        <span className="font-mono font-bold text-amber-600">{lv.exp > 0 ? `${lv.exp.toLocaleString()}` : '—'}</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </motion.section>
-
-          {/* ===== 7. 联盟科技 ===== */}
-          <motion.section initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="space-y-4">
-            <h2 className="text-2xl font-bold flex items-center gap-3">
-              <div className="w-1 h-8 rounded-full bg-gradient-to-b from-sky-500 to-purple-600" />
-              联盟科技
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              {guildTechs.map((t) => (
-                <Card key={t.key} className="hover:shadow-sm transition-shadow">
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-xs font-bold flex items-center gap-1.5">
-                        <Zap className="w-3.5 h-3.5 text-sky-500" />
-                        {t.name}
-                      </CardTitle>
-                      <Badge variant="outline" className="text-[9px] font-mono text-muted-foreground">{t.key}</Badge>
-                    </div>
-                    <CardDescription className="text-[11px]">{t.desc}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-5 gap-1">
-                      {t.levels.map((lv, i) => (
-                        <div key={i} className="text-center p-1 rounded bg-muted/50">
-                          <p className="text-[9px] text-muted-foreground">Lv{i + 1}</p>
-                          <p className="text-[10px] font-mono font-bold text-sky-600">{lv}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </motion.section>
-
-          {/* ===== 8. REST API ===== */}
-          <motion.section initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="space-y-4">
-            <h2 className="text-2xl font-bold flex items-center gap-3">
-              <div className="w-1 h-8 rounded-full bg-gradient-to-b from-purple-500 to-violet-600" />
+              <div className="w-1 h-8 rounded-full bg-gradient-to-b from-emerald-500 to-green-600" />
               REST API
             </h2>
             {apiList.map((api) => (
@@ -692,7 +630,8 @@ export default function Home() {
                       <div className="flex items-center gap-3 flex-wrap">
                         <span className={`px-2.5 py-1 rounded-md text-white text-xs font-bold font-mono ${api.color}`}>{api.method}</span>
                         <code className="text-sm font-mono font-semibold">{api.path}</code>
-                        {api.auth && <Badge variant="outline" className="text-[10px] gap-1 border-violet-300 text-violet-600 dark:text-violet-400"><Shield className="w-3 h-3" />JWT</Badge>}
+                        {api.auth && <Badge variant="outline" className="text-[10px] gap-1 border-emerald-300 text-emerald-600 dark:text-emerald-400"><Shield className="w-3 h-3" />JWT</Badge>}
+                        {!api.auth && api.path.includes('callback') && <Badge variant="outline" className="text-[10px] gap-1 border-amber-300 text-amber-600 dark:text-amber-400"><AlertTriangle className="w-3 h-3" />无JWT</Badge>}
                         <span className="text-xs text-muted-foreground ml-auto">{api.desc}</span>
                         <ChevronDown className="w-4 h-4 text-muted-foreground" />
                       </div>
@@ -712,13 +651,13 @@ export default function Home() {
             ))}
           </motion.section>
 
-          {/* ===== 9. 数据库 ===== */}
+          {/* ===== 7. 数据库 ===== */}
           <motion.section initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="space-y-4">
             <h2 className="text-2xl font-bold flex items-center gap-3">
-              <div className="w-1 h-8 rounded-full bg-gradient-to-b from-violet-500 to-purple-600" />
-              数据库（7 张表）
+              <div className="w-1 h-8 rounded-full bg-gradient-to-b from-emerald-500 to-green-600" />
+              数据库（8 张表）
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {dbTables.map((t) => (
                 <Card key={t.name}>
                   <CardHeader className="pb-2">
@@ -737,18 +676,18 @@ export default function Home() {
             </div>
           </motion.section>
 
-          {/* ===== 10. 核心源码 ===== */}
+          {/* ===== 8. 核心源码 ===== */}
           <motion.section initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="space-y-4">
             <h2 className="text-2xl font-bold flex items-center gap-3">
-              <div className="w-1 h-8 rounded-full bg-gradient-to-b from-fuchsia-600 to-stone-600" />
+              <div className="w-1 h-8 rounded-full bg-gradient-to-b from-teal-600 to-emerald-600" />
               核心源码（14 个文件）
             </h2>
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
               <Card className="lg:col-span-1 p-0 overflow-hidden">
                 <div className="p-3 border-b bg-muted/30">
                   <p className="text-xs font-semibold flex items-center gap-1.5">
-                    <Server className="w-3.5 h-3.5 text-violet-500" />
-                    guild-service/
+                    <Server className="w-3.5 h-3.5 text-emerald-500" />
+                    payment-service/
                   </p>
                 </div>
                 <ScrollArea className="h-[450px]">
@@ -775,13 +714,14 @@ export default function Home() {
                   <div className="p-4">
                     <CodeBlock
                       code={
-                        activeTab === 1 ? warEngineCode
-                        : activeTab === 8 ? schemaSQL
-                        : activeTab === 9 ? configYaml
-                        : `// 完整源码位于 guild-service/ 目录\n// 14 个文件，包含联盟系统核心实现\n// war_engine.go 包含协作战斗计算、自动开战、积分结算等\n// guild_handler.go 提供 18 个 HTTP 接口\n// guild_dao.go 包含 40+ 数据访问方法`
+                        activeTab === 1 ? callbackCode
+                        : activeTab === 9 ? stateMachineCode
+                        : activeTab === 11 ? schemaSQL
+                        : activeTab === 12 ? configYaml
+                        : `// 完整源码位于 payment-service/ 目录\n// 14 个文件，包含支付系统核心实现\n// payment_engine.go 包含回调处理核心逻辑\n// callback_guard.go 包含防重放防护机制\n// order_state.go 订单状态机定义\n// delivery.go 异步发货队列\n// payment_handler.go 提供 10 个 HTTP 接口`
                       }
                       lang={
-                        activeTab === 8 ? 'sql' : activeTab === 9 ? 'yaml' : 'go'
+                        activeTab === 11 ? 'sql' : activeTab === 12 ? 'yaml' : 'go'
                       }
                       filename={sourceFiles[activeTab].name}
                     />
@@ -791,7 +731,7 @@ export default function Home() {
             </div>
           </motion.section>
 
-          {/* ===== 11. 快速启动 ===== */}
+          {/* ===== 9. 快速启动 ===== */}
           <motion.section initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="space-y-4">
             <h2 className="text-2xl font-bold flex items-center gap-3">
               <div className="w-1 h-8 rounded-full bg-gradient-to-b from-emerald-500 to-green-600" />
@@ -801,34 +741,34 @@ export default function Home() {
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-bold flex items-center gap-2">
-                    <span className="w-6 h-6 rounded-full bg-violet-500 text-white flex items-center justify-center text-xs font-bold">1</span>
+                    <span className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold">1</span>
                     建库建表
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <CodeBlock code={`mysql -u root -p < guild-service/docs/schema.sql\n\n# 创建数据库 + 7 张表\n# guilds, guild_members, guild_applications\n# guild_wars, guild_war_battles\n# guild_log, guild_technologies`} lang="bash" filename="terminal" />
+                  <CodeBlock code={`mysql -u root -p < payment-service/docs/schema.sql\n\n# 创建数据库 + 8 张表\n# payment_orders, payment_callbacks\n# user_monthly_cards, user_gift_purchases\n# user_vip_records, user_wallet_logs\n# growth_fund_milestones, refund_records`} lang="bash" filename="terminal" />
                 </CardContent>
               </Card>
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-bold flex items-center gap-2">
-                    <span className="w-6 h-6 rounded-full bg-violet-500 text-white flex items-center justify-center text-xs font-bold">2</span>
-                    创建联盟
+                    <span className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold">2</span>
+                    启动服务
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <CodeBlock code={`# 创建联盟\ncurl -X POST http://localhost:9005/api/v1/guild/create \\\n  -H "Authorization: Bearer <token>" \\\n  -d '{"name":"魏武天下","tag":"魏武",\n       "declaration":"挟天子以令诸侯"}'\n\n# 返回 guild_id，创建者自动成为盟主`} lang="bash" filename="terminal" />
+                  <CodeBlock code={`# 启动支付服务 (端口 9006)\ncd payment-service && go run main.go\n\n# 确保 MySQL + Redis 已启动\n# 服务启动后监听 :9006\n# 日志输出到 logs/payment-service.log`} lang="bash" filename="terminal" />
                 </CardContent>
               </Card>
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-bold flex items-center gap-2">
-                    <span className="w-6 h-6 rounded-full bg-violet-500 text-white flex items-center justify-center text-xs font-bold">3</span>
-                    发起战争
+                    <span className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold">3</span>
+                    测试流程
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <CodeBlock code={`# 宣战\ncurl -X POST http://localhost:9005/api/v1/guild/war/declare \\\n  -H "Authorization: Bearer <token>" \\\n  -d '{"target_guild_id":2,"target_city_id":5}'\n\n# 发起协作战斗\ncurl -X POST http://localhost:9005/api/v1/guild/war/coop/initiate \\\n  -H "Authorization: Bearer <token>" \\\n  -d '{"war_id":"WAR-xxx","city_id":5,"army_power":3000}'`} lang="bash" filename="terminal" />
+                  <CodeBlock code={`# 1. 获取充值档位\ncurl http://localhost:9006/api/v1/pay/tiers\n\n# 2. 创建充值订单\ncurl -X POST http://localhost:9006/api/v1/pay/recharge \\\n  -H "Authorization: Bearer <token>" \\\n  -d '{"tier_id":3,"product_type":"diamond"}'\n\n# 3. 模拟支付回调\ncurl -X POST http://localhost:9006/api/v1/pay/callback \\\n  -d '{"callback_id":"CB_test","order_no":"PAY...","status":"success"}'`} lang="bash" filename="terminal" />
                 </CardContent>
               </Card>
             </div>
@@ -836,18 +776,18 @@ export default function Home() {
 
         </main>
 
-        {/* ===== 12. Footer ===== */}
+        {/* ===== 10. Footer ===== */}
         <footer className="border-t bg-muted/30 mt-auto">
           <div className="max-w-7xl mx-auto px-4 py-6">
             <div className="flex flex-col md:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <Swords className="w-5 h-5 text-violet-500" />
-                <p className="text-sm font-semibold">九州争鼎 — 联盟系统微服务</p>
-                <span className="text-xs text-muted-foreground">Go + 战争引擎 + 协作战斗</span>
+                <CreditCard className="w-5 h-5 text-emerald-500" />
+                <p className="text-sm font-semibold">九州争鼎 — 支付系统微服务</p>
+                <span className="text-xs text-muted-foreground">Go + 订单状态机 + 防重放</span>
               </div>
               <div className="flex items-center gap-2">
-                {['Guild', 'War', 'Coop', 'Port 9005'].map((tag) => (
-                  <Badge key={tag} variant="outline" className="text-[10px] border-violet-200 text-violet-600 dark:text-violet-400 bg-violet-500/5">{tag}</Badge>
+                {['Pay', 'Order', 'StateMachine', 'Port 9006'].map((tag) => (
+                  <Badge key={tag} variant="outline" className="text-[10px] border-emerald-200 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5">{tag}</Badge>
                 ))}
               </div>
             </div>

@@ -1,0 +1,111 @@
+server:
+  host: "0.0.0.0"
+  port: 9006
+  mode: "debug"
+
+mysql:
+  host: "127.0.0.1"
+  port: 3306
+  user: "root"
+  password: "123456"
+  database: "jiuzhou"
+  charset: "utf8mb4"
+  max_idle_conns: 10
+  max_open_conns: 100
+  conn_max_lifetime: 3600
+
+redis:
+  host: "127.0.0.1"
+  port: 6379
+  password: ""
+  db: 3
+  pool_size: 20
+
+jwt:
+  secret: "jiuzhou-payment-service-jwt-secret-key-2024"
+  issuer: "jiuzhou-server"
+  access_ttl: 7200
+  refresh_ttl: 604800
+
+payment:
+  # 支付渠道配置
+  channel_timeout_secs: 1800      # 支付超时(30分钟)
+  callback_retry_max: 3           # 回调最大重试
+  callback_retry_interval: 5      # 回调重试间隔(秒)
+  order_expire_hours: 24          # 订单过期时间
+
+  # 充值档位 (元 -> 钻石)
+  recharge_tiers:
+    - yuan: 6
+      diamond: 60
+      bonus: 0
+      tag: "首充"
+    - yuan: 30
+      diamond: 300
+      bonus: 30
+      tag: "超值"
+    - yuan: 68
+      diamond: 680
+      bonus: 80
+      tag: "热卖"
+    - yuan: 128
+      diamond: 1280
+      bonus: 180
+      tag: "推荐"
+    - yuan: 328
+      diamond: 3280
+      bonus: 520
+      tag: "豪华"
+    - yuan: 648
+      diamond: 6480
+      bonus: 1200
+      tag: "至尊"
+
+  # 月卡配置
+  monthly_card:
+    price_yuan: 30
+    reward_diamond: 300
+    daily_diamond: 100
+    duration_days: 30
+
+  # 礼包配置
+  gift_packs:
+    - key: "starter_pack"
+      name: "新手礼包"
+      price_yuan: 1
+      items: '{"diamond":100,"gold":5000,"food":10000}'
+      limit_per_user: 1
+    - key: "growth_pack"
+      name: "成长基金"
+      price_yuan: 30
+      items: '{"diamond":600}' 
+      milestone_rewards: '{"10":["diamond",200],"20":["diamond",400],"30":["diamond",600],"40":["diamond",800],"50":["diamond",2000]}'
+      limit_per_user: 1
+    - key: "weekly_pack"
+      name: "每周特惠"
+      price_yuan: 12
+      items: '{"diamond":200,"wood":8000,"iron":5000}'
+      reset_days: 7
+
+  # VIP等级配置
+  vip_levels:
+    - level: 1
+      exp: 0
+      daily_reward_diamond: 10
+      benefits: "每日额外体力+10"
+    - level: 2
+      exp: 500
+      daily_reward_diamond: 20
+      benefits: "每日额外体力+20, 抽卡9.5折"
+    - level: 3
+      exp: 2000
+      daily_reward_diamond: 50
+      benefits: "每日额外体力+30, 抽卡9折, 行军加速10%"
+    - level: 4
+      exp: 5000
+      daily_reward_diamond: 100
+      benefits: "每日额外体力+50, 抽卡8.5折, 行军加速15%"
+    - level: 5
+      exp: 15000
+      daily_reward_diamond: 200
+      benefits: "每日额外体力+100, 抽卡8折, 行军加速20%, 专属头像框"
