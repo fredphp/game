@@ -728,6 +728,7 @@ export const menuItems = [
   { id: 'guilds', name: '联盟管理', icon: 'Shield' },
   { id: 'payment', name: '充值支付', icon: 'CreditCard' },
   { id: 'analytics', name: '数据统计', icon: 'BarChart3' },
+  { id: 'quest', name: '任务系统', icon: 'Target' },
   { id: 'logs', name: '日志系统', icon: 'ScrollText' },
   { id: 'config', name: '配置中心', icon: 'Settings' },
   { id: 'activities', name: '活动系统', icon: 'PartyPopper' },

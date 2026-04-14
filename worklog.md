@@ -387,3 +387,121 @@ Stage Summary:
 - 6 data tables: cohort retention, hero ranking, top spenders + supporting stat grids
 - ESLint passes with zero errors, dev server compiles successfully
 - Fully responsive with mobile-first design, framer-motion entrance animations
+
+---
+Task ID: 4
+Agent: admin-quest-page
+Task: Implement admin quest management page
+
+Work Log:
+- Created `/src/components/admin/quest-page.tsx` with 4 tab sections (~750 lines)
+  - Tab 1: 新手引导 (Tutorial Guide) — 8 mock steps, table with step_order/step_key/title/trigger_type/is_required/status, drag handle, status toggle, add/edit/delete dialogs, detail view dialog with dialogues JSON, rewards JSON, UI target
+  - Tab 2: 主线任务 (Main Quests) — 3 chapters with accordion/expandable, sub-table per chapter with quest_order/title/quest_type/target_type/target_count/energy_cost/rewards, add/edit/delete for chapters and quests
+  - Tab 3: 日常任务 (Daily Tasks) — 11 mock tasks with search/filter, task_key/title/task_type/target_count/refresh_type/activity_points/sort_order, activity milestones sub-section with 5 rewards
+  - Tab 4: 成就系统 (Achievements) — 13 mock achievements, category filter buttons (All/Battle/Collection/Social/Development/Guild), title/category/condition_type/reward_points/is_hidden/sort_order, condition params JSON editor
+- Modified `/src/lib/admin-data.ts` — added quest menu entry `{ id: 'quest', name: '任务系统', icon: 'Target' }` between analytics and logs
+- Modified `/src/components/admin/admin-layout.tsx` — added Target icon import and iconMap entry
+- Modified `/src/app/page.tsx` — added QuestPage import and routing entry
+- ESLint passes with zero errors
+- Dev server compiles successfully (200 OK)
+
+Stage Summary:
+- 1 file created, 3 files modified
+- quest-page.tsx: 4-tab admin page with full CRUD dialogs, search/filter, responsive design
+- All text in Chinese, uses shadcn/ui components, Tailwind CSS 4
+- Color scheme: amber (tutorial), red (main quest), emerald (daily task), purple (achievement) — no blue/indigo
+- Custom scrollbar styling, mobile-responsive tab labels
+
+---
+Task ID: 3
+Agent: unity-quest-client
+Task: Implement Unity client scripts for quest system
+
+Work Log:
+- Created QuestModel.cs with all data models (Tutorial, MainQuest, DailyTask, Achievement, Common)
+  - TutorialStep, TutorialProgress, TutorialStepsResponse, TutorialProgressResponse
+  - MainChapter, MainQuest, MainQuestProgress, ChaptersResponse, ChapterDetailResponse, MainQuestProgressResponse
+  - DailyTask, DailyTaskProgress, ActivityReward, DailyTasksResponse, ActivityInfoResponse
+  - Achievement, AchievementProgress, AchievementListResponse, AchievementStatsResponse
+  - RewardItem, CompleteStepRequest, ClaimRewardResponse
+  - All models use [Serializable] + [SerializeField] private fields with public properties
+  - JSON field names use snake_case matching Go backend quest-service
+  - Helper methods: ProgressPercent, GetStatusName, GetTypeName, GetRarityColor, GetDisplayText
+- Created QuestApi.cs with 16 API methods covering all quest-service endpoints
+  - Tutorial: GetTutorialSteps, GetTutorialProgress, CompleteTutorialStep, SkipTutorial
+  - Main Quest: GetChapters, GetChapterDetail, GetMainQuestProgress, CompleteMainQuest, ClaimMainQuest
+  - Daily Task: GetDailyTasks, ClaimDailyTask, GetActivityInfo, ClaimActivityReward
+  - Achievement: GetAchievements, GetAchievement, ClaimAchievement, GetAchievementStats
+  - Follows UserApi/CardApi coroutine pattern with ApiResult<T> callbacks
+- Created QuestPanel.cs main quest UI with 3 tabs (~530 lines)
+  - Tab switching (主线/日常/成就) with highlight indicators and red dot notifications
+  - Main Quest: chapter list with progress bars → quest list with status/progress/claim buttons
+  - Daily Task: task list with progress bars, reward preview, claim buttons; activity reward bar with milestones
+  - Achievement: 6 category filter buttons (全部/战斗/卡牌/公会/收集/成长), achievement grid with rarity colors
+  - Reward preview popup for all claim actions
+  - EventBus resource change notification on claim
+  - Parallel data loading (chapters + progress, tasks + activity)
+- Created TutorialPanel.cs tutorial overlay (~480 lines)
+  - Semi-transparent mask overlay with configurable color
+  - Highlight frame that dynamically positions over target UI elements
+  - Dialog box with speaker avatar, name, typewriter effect content display
+  - Arrow pointer with bounce animation
+  - Step progress indicator (text + colored dots)
+  - Skip button with confirmation dialog
+  - Tap indicator with pulse animation for manual-trigger steps
+  - Step transition animation (fade out)
+  - Callback-driven: SetCallbacks(stepComplete, onSkip, onFinish)
+- Created TutorialManager.cs tutorial state machine (~420 lines)
+  - Singleton<T> pattern (extends Singleton<TutorialManager>)
+  - State machine: Idle → Loading → Waiting → Running → Completed/Skipped
+  - CheckAndStartTutorial: login check → load data → auto-start for new players
+  - Parallel API loading (steps + progress) with auto-resume from last incomplete step
+  - TriggerGameEvent: condition-based step advancement via game events
+  - PauseTutorial/ResumeTutorial: for panel switching during tutorial
+  - ResetTutorial: debug utility to clear all state
+  - PlayerPrefs persistence: completion status, last step, skip flag
+  - EventBus integration for event monitoring
+  - TutorialPanel coordination: open/close, step display, callbacks
+
+Stage Summary:
+- 5 Unity C# files created:
+  - Data/QuestModel.cs (~500 lines) — 22 data model classes
+  - Core/Network/Api/QuestApi.cs (~210 lines) — 16 API methods
+  - Module/Quest/QuestPanel.cs (~530 lines) — 3-tab quest UI panel
+  - Module/Quest/TutorialPanel.cs (~480 lines) — tutorial overlay panel
+  - Module/Quest/TutorialManager.cs (~420 lines) — tutorial state machine singleton
+- Full API coverage for quest-service (4 tutorial + 5 main quest + 4 daily task + 3 achievement endpoints)
+- Tutorial overlay system with step management, typewriter effect, arrow bounce, highlight targeting
+- Follows existing code patterns: UIBase lifecycle, [SerializeField], HttpClient coroutine, ApiResult<T>, EventBus
+- Namespaces: Game.Data (models), Game.Core.Network.Api (API), Game.Module.Quest (panels/manager)
+
+---
+Task ID: 4
+Agent: full-stack-developer
+Task: Build quest page with core flow analytics dashboard
+
+Work Log:
+- Read existing quest-page.tsx and understood current 4-tab structure with mock data
+- Read all 5 API routes (core-flow, tutorial, chapters, daily, achievements) to understand data shapes
+- Added "核心流程概览" tab as the first (leftmost) tab with 6 KPI cards
+- Built 4 Recharts charts: Tutorial Funnel (horizontal Bar), Retention Comparison (multi-line), Quest Progress Distribution (grouped Bar), Daily Task Completion (sorted horizontal Bar)
+- Added Achievement Unlock TOP 10 table with progress bars and medal emojis
+- Connected all 5 tabs to real backend APIs via useEffect + useCallback
+- Added loading states (Loader2 spinner) and skeleton loaders for core flow tab
+- Added refresh buttons per tab to re-fetch data
+- Connected all CRUD operations (create/edit/delete) to real API endpoints with optimistic UI updates
+- Mock data retained as initial state fallback when API calls fail
+- Changed TabsList from grid-cols-4 to grid-cols-5, defaultValue to "core-flow"
+- Added new icons: Activity, Users, TrendingUp, RefreshCw, Loader2 from lucide-react
+- Added new Recharts imports: BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell
+- Added CoreFlowKPI, CoreFlowData interfaces for type safety
+
+Stage Summary:
+- quest-page.tsx now has 5 tabs: 核心流程概览, 新手引导, 主线任务, 日常任务, 成就系统
+- 6 KPI cards: 引导完成率, 平均主线进度, 人均日常完成, 日常全勤率, 人均成就数, 留存提升
+- 4 charts using Recharts: Tutorial Funnel, Retention Comparison, Quest Progress Distribution, Daily Task Completion
+- Achievement Unlock TOP 10 table with rank medals and progress bars
+- All CRUD operations connected to real API endpoints with optimistic updates
+- Loading states with spinners and skeleton loaders
+- ESLint passes with zero errors
+- Dev server compiles and serves successfully (200 OK)

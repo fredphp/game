@@ -18,6 +18,7 @@ import {
   PartyPopper,
   Lock,
   ArrowDownUp,
+  Target,
 } from "lucide-react";
 
 import { menuItems } from "@/lib/admin-data";
@@ -74,6 +75,7 @@ const iconMap: Record<string, React.ComponentType<React.SVGProps<SVGSVGElement>>
   PartyPopper,
   Lock,
   ArrowDownUp,
+  Target,
 };
 
 // ---------------------------------------------------------------------------

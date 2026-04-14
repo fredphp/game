@@ -115,3 +115,142 @@ model RetentionRecord {
 
   @@index([cohortDate])
 }
+
+// ==================== 游戏核心流程系统 ====================
+
+/// 新手引导步骤
+model TutorialStep {
+  id          Int      @id @default(autoincrement())
+  stepOrder   Int                               // 步骤顺序
+  stepKey     String   @unique                  // 步骤唯一标识
+  title       String                           // 步骤标题
+  triggerType String   @default("level")        // 触发类型: level/building/battle/gacha/quest/social
+  isRequired  Boolean  @default(true)           // 是否必须完成
+  status      Int      @default(1)              // 1=启用 0=禁用
+  dialogues    String   @default("[]")           // 对话内容JSON
+  rewards      String   @default("{}")           // 奖励JSON
+  uiTarget     String   @default("")             // UI指向目标
+  description  String   @default("")             // 描述
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+/// 主线章节
+model Chapter {
+  id           Int      @id @default(autoincrement())
+  chapterOrder Int                               // 章节顺序
+  title        String                           // 章节标题
+  unlockLevel  Int      @default(1)              // 解锁等级
+  description  String   @default("")             // 章节描述
+  status       Int      @default(1)              // 1=启用 0=禁用
+  quests       Quest[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+/// 主线任务
+model Quest {
+  id          Int      @id @default(autoincrement())
+  chapterId   Int                               // 所属章节ID
+  questOrder  Int                               // 任务顺序
+  title       String                           // 任务标题
+  questType   String   @default("story")        // 类型: story/battle/collect/explore/escort/defend
+  targetType  String   @default("")             // 目标类型
+  targetCount Int      @default(1)              // 目标数量
+  energyCost  Int      @default(5)              // 体力消耗
+  rewards     String   @default("{}")           // 奖励JSON
+  description String   @default("")             // 描述
+  status      Int      @default(1)              // 1=启用 0=禁用
+  chapter     Chapter  @relation(fields: [chapterId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([chapterId])
+}
+
+/// 日常任务
+model DailyTask {
+  id              Int      @id @default(autoincrement())
+  taskKey         String   @unique              // 任务唯一标识
+  title           String                         // 任务标题
+  taskType        String   @default("battle")   // 类型: battle/gacha/social/guild/resource/growth
+  targetCount     Int      @default(1)           // 目标数量
+  refreshType     String   @default("daily")     // 刷新类型: daily/weekly
+  activityPoints  Int      @default(10)          // 活跃度积分
+  sortOrder       Int      @default(0)           // 排序
+  status          Int      @default(1)           // 1=启用 0=禁用
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+/// 活跃度里程碑
+model ActivityMilestone {
+  id              Int      @id @default(autoincrement())
+  requiredPoints  Int                               // 所需活跃度
+  rewards         String   @default("{}")           // 奖励JSON
+  title           String                           // 里程碑标题
+  sortOrder       Int      @default(0)              // 排序
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+/// 成就
+model Achievement {
+  id              Int      @id @default(autoincrement())
+  title           String                           // 成就名称
+  description     String                           // 成就描述
+  category        String   @default("battle")      // 分类: battle/collection/social/development/guild
+  conditionType   String                           // 条件类型
+  conditionParams String   @default("{}")           // 条件参数JSON
+  rewardPoints    Int      @default(10)             // 奖励积分
+  isHidden        Boolean  @default(false)           // 是否隐藏
+  sortOrder       Int      @default(0)              // 排序
+  status          Int      @default(1)              // 1=启用 0=禁用
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+/// 玩家任务进度 (抽样)
+model PlayerQuestProgress {
+  id              Int      @id @default(autoincrement())
+  userId          Int                                // 用户ID
+  progressType    String                             // progress_type: tutorial/quest/daily/achievement
+  targetId        Int      @default(0)               // 目标ID(步骤/任务/成就ID)
+  status          Int      @default(0)               // 0=未开始 1=进行中 2=已完成 3=已领取
+  currentValue    Int      @default(0)               // 当前进度值
+  completedAt     DateTime?                          // 完成时间
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@index([progressType])
+  @@index([status])
+  @@index([createdAt])
+}
+
+/// 核心流程日统计
+model CoreFlowDailyStats {
+  id                    Int      @id @default(autoincrement())
+  date                  String   @unique                // YYYY-MM-DD
+  // 新手引导
+  tutorialStarted       Int      @default(0)             // 开始引导人数
+  tutorialCompleted     Int      @default(0)             // 完成引导人数
+  tutorialDropStep      Int      @default(0)             // 平均流失步骤
+  tutorialCompleteRate  Float    @default(0)             // 引导完成率(%)
+  // 主线任务
+  questStarted          Int      @default(0)             // 开始主线人数
+  questAvgProgress      Float    @default(0)             // 平均主线进度(章节数)
+  quest7DayFinishRate   Float    @default(0)             // 新用户7日主线完成率(%)
+  // 日常任务
+  dailyTaskAvgCount     Float    @default(0)             // 人均每日完成日常数
+  dailyTaskFullRate     Float    @default(0)             // 全部完成率(%)
+  // 成就
+  achievementAvgCount   Float    @default(0)             // 人均解锁成就数
+  achievementPopRate    Float    @default(0)             // 最热成就解锁率(%)
+  // 综合
+  day1WithTutorial      Float    @default(0)             // 完成引导用户1日留存(%)
+  day1WithoutTutorial   Float    @default(0)             // 未完成引导用户1日留存(%)
+  day7WithQuest         Float    @default(0)             // 推进主线用户7日留存(%)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
