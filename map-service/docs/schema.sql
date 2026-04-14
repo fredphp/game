@@ -112,7 +112,8 @@ CREATE TABLE `march_orders` (
     KEY `idx_target_status`  (`target_city_id`, `status`),
     KEY `idx_alliance`       (`alliance_id`),
     KEY `idx_arrive_time`    (`arrive_time`, `status`),
-    KEY `idx_start_time`     (`start_time`)
+    KEY `idx_start_time`     (`start_time`),
+    KEY `idx_processing`     (`status`, `arrive_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='行军令表';
 
 -- ─────────────────────────────────────────────────────
@@ -138,6 +139,45 @@ CREATE TABLE `alliance_territories` (
     KEY `idx_city_count`   (`city_count`),
     KEY `idx_territory_lv` (`territory_level`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='联盟领土表';
+
+-- ─────────────────────────────────────────────────────
+-- 行军检查点表（心跳与断线恢复）
+-- ─────────────────────────────────────────────────────
+DROP TABLE IF EXISTS `march_checkpoints`;
+CREATE TABLE `march_checkpoints` (
+    `march_id`        VARCHAR(64)  NOT NULL                COMMENT '行军ID',
+    `worker_id`       VARCHAR(32)  NOT NULL DEFAULT ''      COMMENT '处理者标识(实例+协程)',
+    `progress`        INT          NOT NULL DEFAULT 0      COMMENT '检查点进度 0~100',
+    `status`          TINYINT      NOT NULL DEFAULT 1      COMMENT '1=处理中 2=已完成 3=异常中断',
+    `heartbeat_at`    DATETIME     NOT NULL                COMMENT '最后心跳时间',
+    `updated_at`      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `created_at`      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`march_id`),
+    KEY `idx_status`       (`status`),
+    KEY `idx_heartbeat`    (`heartbeat_at`, `status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='行军检查点表';
+
+-- ─────────────────────────────────────────────────────
+-- 城池占领锁表（防重复占领分布式锁）
+-- ─────────────────────────────────────────────────────
+DROP TABLE IF EXISTS `city_occupation_locks`;
+CREATE TABLE `city_occupation_locks` (
+    `id`              BIGINT       NOT NULL AUTO_INCREMENT COMMENT 'ID',
+    `city_id`         BIGINT       NOT NULL                COMMENT '城池ID',
+    `march_id`        VARCHAR(64)  NOT NULL                COMMENT '当前处理行军ID',
+    `owner_before`    JSON         DEFAULT NULL            COMMENT '占领前状态快照(JSON)',
+    `lock_status`     TINYINT      NOT NULL DEFAULT 1      COMMENT '1=锁定中 2=已提交 3=已释放 4=超时释放',
+    `locked_at`       DATETIME     NOT NULL                COMMENT '锁定时间',
+    `expire_at`       DATETIME     NOT NULL                COMMENT '锁过期时间',
+    `created_at`      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_city` (`city_id`),
+    KEY `idx_march`        (`march_id`),
+    KEY `idx_lock_status`  (`lock_status`, `expire_at`),
+    KEY `idx_expire`       (`expire_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='城池占领锁表';
 
 -- ─────────────────────────────────────────────────────
 -- 城池战斗记录表

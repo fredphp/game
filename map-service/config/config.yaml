@@ -35,3 +35,6 @@ march:
   recall_refund_rate: 0.8      # 撤回资源返还比例
   stream_key: "map:march:stream"
   consumer_group: "map-service"
+  lock_ttl_seconds: 30          # NEW: 城池占领锁超时(秒)
+  heartbeat_ttl_seconds: 30     # NEW: 检查点心跳超时(秒)
+  recovery_interval_sec: 30     # NEW: 断线恢复检查间隔(秒)

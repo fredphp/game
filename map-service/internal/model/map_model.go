@@ -227,6 +227,70 @@ func MarchStatusText(s int8) string {
         }
 }
 
+// ================================================================
+// 行军检查点
+// ================================================================
+
+// CheckpointStatus 检查点状态
+const (
+        CheckpointProcessing   = 1 // 处理中
+        CheckpointCompleted    = 2 // 已完成
+        CheckpointInterrupted  = 3 // 异常中断
+)
+
+// LockStatus 锁状态
+const (
+        LockStatusLocked    = 1 // 锁定中
+        LockStatusCommitted = 2 // 已提交
+        LockStatusReleased  = 3 // 已释放
+        LockStatusExpired   = 4 // 超时释放
+)
+
+// MarchCheckpoint 行军检查点
+type MarchCheckpoint struct {
+        MarchID     string    `json:"march_id"`
+        WorkerID    string    `json:"worker_id"`
+        Progress    int       `json:"progress"`
+        Status      int8      `json:"status"`
+        HeartbeatAt time.Time `json:"heartbeat_at"`
+        UpdatedAt   time.Time `json:"updated_at"`
+        CreatedAt   time.Time `json:"created_at"`
+}
+
+// CityOccupationLock 城池占领锁
+type CityOccupationLock struct {
+        ID          int64           `json:"id"`
+        CityID      int64           `json:"city_id"`
+        MarchID     string          `json:"march_id"`
+        OwnerBefore json.RawMessage `json:"owner_before,omitempty"`
+        LockStatus  int8            `json:"lock_status"`
+        LockedAt    time.Time       `json:"locked_at"`
+        ExpireAt    time.Time       `json:"expire_at"`
+        CreatedAt   time.Time       `json:"created_at"`
+}
+
+// MarchRecoveryInfo 行军恢复信息
+type MarchRecoveryInfo struct {
+        MarchID          string `json:"march_id"`
+        UserID           int64  `json:"user_id"`
+        TargetCityID     int64  `json:"target_city_id"`
+        MarchType        int8   `json:"march_type"`
+        Status           int8   `json:"status"`
+        Progress         int    `json:"progress"`
+        WasInterrupted   bool   `json:"was_interrupted"`
+        CheckpointWorker string `json:"checkpoint_worker"`
+}
+
+// EngineStats 引擎统计
+type EngineStats struct {
+        ActiveMarches   int `json:"active_marches"`
+        CheckpointCount  int `json:"checkpoint_count"`
+        InterruptedCount int `json:"interrupted_count"`
+        LockCount        int `json:"lock_count"`
+        ExpiredLockCount int `json:"expired_lock_count"`
+        RecoveryCount    int `json:"recovery_count"`
+}
+
 // OwnerTypeText 占领类型文本
 func OwnerTypeText(t int8) string {
         switch t {

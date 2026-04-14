@@ -505,3 +505,96 @@ Stage Summary:
 - Loading states with spinners and skeleton loaders
 - ESLint passes with zero errors
 - Dev server compiles and serves successfully (200 OK)
+
+---
+Task ID: 3-10
+Agent: full-stack-developer
+Task: Optimize map-service with march persistence, Redis queue, disconnect recovery, and duplicate occupation prevention
+
+Work Log:
+- Modified 8 Go files in map-service/ to implement 4 major reliability improvements
+
+### 1. 行军持久化 (March Persistence) — Checkpoint Heartbeat System
+- Added `march_checkpoints` table support in model (MarchCheckpoint struct, CheckpointStatus constants)
+- Added 7 DAO methods: CreateCheckpoint, UpdateCheckpointHeartbeat, GetCheckpoint, ListInterruptedCheckpoints, MarkCheckpointCompleted, MarkCheckpointInterrupted, CleanupCompletedCheckpoints
+- Engine creates checkpoint on acquireProcessing, marks completed on releaseProcessing
+- Redis key `map:march:checkpoint:{march_id}` with TTL for heartbeat monitoring
+
+### 2. Redis优先队列 (Redis Sorted Set Priority Queue)
+- Replaced Redis Stream with Redis Sorted Set `map:march:queue`
+- Score = arrive_time.UnixNano (earliest first), Member = march_id
+- Workers use ZPOPMIN for atomic consumption — no duplicate processing possible
+- On march creation: ZADD to queue; On arrival: ZREM cleanup
+- Workers check arrive_time before processing, re-enqueue if premature
+
+### 3. 断线恢复 (Disconnect Recovery)
+- New `recoveryWorker` goroutine runs every 30s scanning for:
+  - Interrupted checkpoints (status=3, heartbeat > 30s ago) → re-enqueue marches
+  - Stuck marches (status=1, arrive_time < now, no active checkpoint) → enqueue
+- `RecoverAllMarches()` called on startup for crash recovery
+- Old completed checkpoints cleaned up (older than 1 hour)
+
+### 4. 防重复占领 (Prevent Duplicate Occupation)
+- `city_occupation_locks` table with UNIQUE KEY on city_id for distributed lock
+- `TryAcquireCityLock`: INSERT IGNORE, returns (acquired, error)
+- `lockCity/unlockCity` in engine wraps handleAttackArrival with defer unlock
+- Lock TTL: 30 seconds auto-expire; commit if won, release if failed
+- `lockCleanupWorker` goroutine runs every 60s cleaning expired locks
+
+### 5. Worker Race Fix & Graceful Shutdown
+- CAS update: Marching(1) → Battle(3) with WHERE status=1, affected rows = 0 means another worker got it
+- sync.WaitGroup tracks all goroutines for graceful shutdown with 30s timeout
+- CancelFn propagated via context to all goroutines
+
+### 6. New API & Config
+- Added `GET /api/v1/map/engine/stats` public endpoint for engine monitoring
+- Added config keys: lock_ttl_seconds, heartbeat_ttl_seconds, recovery_interval_sec
+- Added service methods: RecoverMarches, GetEngineStats, GetUserMarchesWithProgress
+- Added EngineStats model with active/checkpoint/interrupt/lock/recovery counts
+
+Files modified:
+- internal/model/map_model.go — +68 lines (6 new types, 2 const groups)
+- internal/dao/map_dao.go — +275 lines (14 new DAO methods)
+- internal/engine/march_engine.go — complete rewrite (~1070 lines)
+- internal/service/map_service.go — +47 lines (3 new service methods)
+- internal/handler/map_handler.go — +14 lines (EngineStats handler)
+- internal/router/router.go — +1 line (new route)
+- cmd/main.go — +7 lines (startup recovery call + context import)
+- config/config.yaml — +3 lines (new config keys)
+
+Stage Summary:
+- 4 reliability systems implemented: checkpoint heartbeat, Redis sorted set queue, disconnect recovery, city occupation lock
+- Zero duplicate march processing via ZPOPMIN atomicity + CAS status update
+- Graceful shutdown with WaitGroup coordination (30s timeout)
+- Engine stats endpoint for operational monitoring
+- Startup crash recovery for interrupted/stuck marches
+- All existing functionality preserved (BFS pathfinding, march types, food consumption, alliance territory, battle logic)
+
+---
+Task ID: 5
+Agent: full-stack-developer
+Task: Add 行军监控 (March Monitoring) section to map-page.tsx
+
+Work Log:
+- Read existing map-page.tsx to understand current structure (6×6 city grid + march queue table)
+- Added new imports: Activity, ShieldAlert, RefreshCw, Lock, Unlock, ChevronDown from lucide-react
+- Added imports: Progress, Collapsible/CollapsibleTrigger/CollapsibleContent from shadcn/ui
+- Defined 2 new TypeScript interfaces: MarchMonitor, CityLock
+- Created mock data: 5 march monitoring rows (M-1001~M-1005) and 3 city lock rows
+- Added style maps for march status badges (5 states), lock status badges (4 states), march type badges (5 types)
+- Added 3 new useState hooks: monitorMarches, monitorLocks, monitorRefreshKey
+- Added monitorKpis useMemo deriving 4 KPIs (activeMarches, checkpoints, interrupted, locks) from state
+- Built collapsible Card section with amber gradient border, inserted between header and Map Controls
+- Title area: Activity icon + "行军监控" title + green "实时" Badge with pulse animation + refresh button + collapsible chevron
+- 4 KPI mini-cards in responsive grid (2-col mobile, 4-col desktop): 活跃行军(amber), 处理中检查点(sky), 中断待恢复(red), 占领锁数量(purple)
+- March Recovery Table: 7 columns with progress bars, action "恢复" button for interrupted marches (changes status to 行军中)
+- City Lock Table: 6 columns with lock status badges, action "释放" button for locked items (changes status to 已释放)
+- All existing functionality preserved — no code removed or modified beyond insertions
+- ESLint passes with zero errors
+
+Stage Summary:
+- 1 file modified: src/components/admin/map-page.tsx (+~220 lines of new content)
+- New section: 行军监控面板 (collapsible) with KPI cards + 2 data tables
+- Interactive: refresh button, collapsible toggle, "恢复" button for interrupted marches, "释放" button for locked cities
+- All mock data driven by useState for interactivity
+- Responsive design with proper mobile/desktop grid breakpoints

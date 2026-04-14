@@ -3,7 +3,8 @@
 import { useState, useMemo } from 'react'
 import {
   RotateCcw, MapPin, Swords, Shield, Users, Mountain, Castle,
-  Clock, X, ChevronRight,
+  Clock, X, ChevronRight, Activity, ShieldAlert, RefreshCw, Lock, Unlock,
+  ChevronDown,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -27,7 +28,66 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Progress } from '@/components/ui/progress'
+import {
+  Collapsible, CollapsibleContent, CollapsibleTrigger,
+} from '@/components/ui/collapsible'
 import { mockCities, mockMarches, type City, type MarchQueue } from '@/lib/admin-data'
+
+// --- March Monitoring Types ---
+interface MarchMonitor {
+  id: string
+  playerId: string
+  targetCity: string
+  type: '进攻' | '增援' | '侦查' | '撤退' | '迁城'
+  status: '行军中' | '战斗中' | '已完成' | '已撤回' | '中断'
+  progress: number
+}
+
+interface CityLock {
+  cityId: string
+  marchId: string
+  lockStatus: '锁定中' | '已提交' | '已释放' | '已超时'
+  lockTime: string
+  expiryTime: string
+}
+
+const monitorMockMarches: MarchMonitor[] = [
+  { id: 'M-1001', playerId: 'P-2031', targetCity: '洛阳', type: '进攻', status: '行军中', progress: 72 },
+  { id: 'M-1002', playerId: 'P-1847', targetCity: '长安', type: '增援', status: '战斗中', progress: 45 },
+  { id: 'M-1003', playerId: 'P-3052', targetCity: '建业', type: '侦查', status: '已完成', progress: 100 },
+  { id: 'M-1004', playerId: 'P-1208', targetCity: '成都', type: '撤退', status: '已撤回', progress: 88 },
+  { id: 'M-1005', playerId: 'P-4015', targetCity: '许昌', type: '迁城', status: '中断', progress: 33 },
+]
+
+const monitorMockLocks: CityLock[] = [
+  { cityId: 'C-1003', marchId: 'M-1001', lockStatus: '锁定中', lockTime: '14:23:05', expiryTime: '14:25:05' },
+  { cityId: 'C-1007', marchId: 'M-1002', lockStatus: '已提交', lockTime: '14:20:18', expiryTime: '14:22:18' },
+  { cityId: 'C-1015', marchId: 'M-1005', lockStatus: '已超时', lockTime: '13:55:42', expiryTime: '13:57:42' },
+]
+
+const marchStatusStyles: Record<string, string> = {
+  '行军中': 'bg-amber-500/10 text-amber-600 border-amber-300',
+  '战斗中': 'bg-red-500/10 text-red-600 border-red-300',
+  '已完成': 'bg-emerald-500/10 text-emerald-600 border-emerald-300',
+  '已撤回': 'bg-stone-500/10 text-stone-500 border-stone-300',
+  '中断': 'bg-orange-500/10 text-orange-600 border-orange-300',
+}
+
+const lockStatusStyles: Record<string, string> = {
+  '锁定中': 'bg-red-500/10 text-red-600 border-red-300',
+  '已提交': 'bg-emerald-500/10 text-emerald-600 border-emerald-300',
+  '已释放': 'bg-stone-500/10 text-stone-500 border-stone-300',
+  '已超时': 'bg-orange-500/10 text-orange-600 border-orange-300',
+}
+
+const marchTypeStyles: Record<string, string> = {
+  '进攻': 'bg-red-500/10 text-red-500',
+  '增援': 'bg-sky-500/10 text-sky-500',
+  '侦查': 'bg-purple-500/10 text-purple-500',
+  '撤退': 'bg-stone-500/10 text-stone-500',
+  '迁城': 'bg-emerald-500/10 text-emerald-500',
+}
 
 // --- Helpers ---
 const factionColors: Record<string, string> = {
@@ -252,6 +312,17 @@ function CityDetailPanel({
 export default function MapPage() {
   const [selectedCity, setSelectedCity] = useState<City | null>(null)
   const [marches] = useState<MarchQueue[]>(mockMarches)
+  const [monitorMarches, setMonitorMarches] = useState<MarchMonitor[]>(monitorMockMarches)
+  const [monitorLocks, setMonitorLocks] = useState<CityLock[]>(monitorMockLocks)
+  const [monitorRefreshKey, setMonitorRefreshKey] = useState(0)
+
+  // Derive KPIs from state
+  const monitorKpis = useMemo(() => ({
+    activeMarches: monitorMarches.filter((m) => m.status === '行军中' || m.status === '战斗中').length,
+    checkpoints: monitorMarches.filter((m) => m.status === '行军中').length,
+    interrupted: monitorMarches.filter((m) => m.status === '中断').length,
+    locks: monitorLocks.filter((l) => l.lockStatus === '锁定中').length,
+  }), [monitorMarches, monitorLocks])
 
   // Build 6x6 grid
   const cityGrid = useMemo(() => {
@@ -274,6 +345,188 @@ export default function MapPage() {
         <h2 className="text-2xl font-bold tracking-tight">地图控制台</h2>
         <p className="text-sm text-muted-foreground mt-1">查看九州地图、管理城池和行军队列</p>
       </div>
+
+      {/* March Monitoring Panel */}
+      <Card className="border-amber-200/60 bg-gradient-to-br from-amber-50/30 to-transparent">
+        <Collapsible defaultOpen>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Activity className="w-4 h-4 text-amber-600" />
+                <CardTitle className="text-sm font-semibold">行军监控</CardTitle>
+                <Badge className="bg-emerald-500 text-white border-0 text-[10px] px-1.5 h-5 animate-pulse">
+                  <span className="relative flex h-2 w-2 mr-1">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
+                  </span>
+                  实时
+                </Badge>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setMonitorRefreshKey((k) => k + 1)}
+                >
+                  <RefreshCw className="w-3 h-3 mr-1" />刷新
+                </Button>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                    <ChevronDown className="w-4 h-4 transition-transform duration-200 [[data-state=open]>&]:rotate-180" />
+                  </Button>
+                </CollapsibleTrigger>
+              </div>
+            </div>
+          </CardHeader>
+          <CollapsibleContent>
+            <CardContent className="space-y-5">
+              {/* KPI Mini Cards */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                {[
+                  { label: '活跃行军', value: monitorKpis.activeMarches, icon: Activity, color: 'text-amber-600', bgColor: 'bg-amber-500/10' },
+                  { label: '处理中检查点', value: monitorKpis.checkpoints, icon: ShieldAlert, color: 'text-sky-600', bgColor: 'bg-sky-500/10' },
+                  { label: '中断待恢复', value: monitorKpis.interrupted, icon: ShieldAlert, color: 'text-red-600', bgColor: 'bg-red-500/10' },
+                  { label: '占领锁数量', value: monitorKpis.locks, icon: Lock, color: 'text-purple-600', bgColor: 'bg-purple-500/10' },
+                ].map((kpi) => (
+                  <div key={kpi.label} className={`flex items-center gap-3 rounded-lg border p-3 ${kpi.bgColor} transition-all hover:shadow-sm`}>
+                    <div className={`flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-lg bg-background shadow-sm`}>
+                      <kpi.icon className={`w-4 h-4 ${kpi.color}`} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-muted-foreground leading-none">{kpi.label}</p>
+                      <p className={`text-lg font-bold font-mono leading-tight mt-1 ${kpi.color}`}>{kpi.value}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <Separator />
+
+              {/* March Recovery Table */}
+              <div>
+                <h4 className="text-xs font-semibold text-muted-foreground mb-3 flex items-center gap-1.5">
+                  <ShieldAlert className="w-3.5 h-3.5" />
+                  行军恢复列表
+                </h4>
+                <div className="overflow-x-auto max-h-[280px] overflow-y-auto rounded-lg border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="text-xs">行军ID</TableHead>
+                        <TableHead className="text-xs">玩家ID</TableHead>
+                        <TableHead className="text-xs">目标城池</TableHead>
+                        <TableHead className="text-xs">类型</TableHead>
+                        <TableHead className="text-xs">状态</TableHead>
+                        <TableHead className="text-xs min-w-[120px]">进度</TableHead>
+                        <TableHead className="text-xs text-center">操作</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {monitorMarches.map((march) => (
+                        <TableRow key={march.id}>
+                          <TableCell className="text-xs font-mono font-medium">{march.id}</TableCell>
+                          <TableCell className="text-xs font-mono text-muted-foreground">{march.playerId}</TableCell>
+                          <TableCell className="text-xs font-medium">{march.targetCity}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={`text-[10px] px-1.5 h-5 border-0 ${marchTypeStyles[march.type]}`}>
+                              {march.type}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={`text-[10px] px-1.5 h-5 ${marchStatusStyles[march.status]}`}>
+                              {march.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Progress value={march.progress} className="h-1.5 flex-1" />
+                              <span className="text-[10px] text-muted-foreground font-mono w-8 text-right">{march.progress}%</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {march.status === '中断' && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-6 text-[10px] px-2 text-orange-600 border-orange-300 hover:bg-orange-50"
+                                onClick={() => setMonitorMarches((prev) =>
+                                  prev.map((m) => m.id === march.id ? { ...m, status: '行军中' as const } : m)
+                                )}
+                              >
+                                <RefreshCw className="w-3 h-3 mr-0.5" />恢复
+                              </Button>
+                            )}
+                            {march.status !== '中断' && (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* City Lock Table */}
+              <div>
+                <h4 className="text-xs font-semibold text-muted-foreground mb-3 flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5" />
+                  占领锁管理
+                </h4>
+                <div className="overflow-x-auto max-h-[200px] overflow-y-auto rounded-lg border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="text-xs">城池ID</TableHead>
+                        <TableHead className="text-xs">行军ID</TableHead>
+                        <TableHead className="text-xs">锁状态</TableHead>
+                        <TableHead className="text-xs">锁定时间</TableHead>
+                        <TableHead className="text-xs">过期时间</TableHead>
+                        <TableHead className="text-xs text-center">操作</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {monitorLocks.map((lock) => (
+                        <TableRow key={`${lock.cityId}-${lock.marchId}`}>
+                          <TableCell className="text-xs font-mono font-medium">{lock.cityId}</TableCell>
+                          <TableCell className="text-xs font-mono text-muted-foreground">{lock.marchId}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={`text-[10px] px-1.5 h-5 ${lockStatusStyles[lock.lockStatus]}`}>
+                              {lock.lockStatus}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs font-mono text-muted-foreground">{lock.lockTime}</TableCell>
+                          <TableCell className="text-xs font-mono text-muted-foreground">{lock.expiryTime}</TableCell>
+                          <TableCell className="text-center">
+                            {lock.lockStatus === '锁定中' && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-6 text-[10px] px-2 text-red-600 border-red-300 hover:bg-red-50"
+                                onClick={() => setMonitorLocks((prev) =>
+                                  prev.map((l) => l.marchId === lock.marchId ? { ...l, lockStatus: '已释放' as const } : l)
+                                )}
+                              >
+                                <Unlock className="w-3 h-3 mr-0.5" />释放
+                              </Button>
+                            )}
+                            {lock.lockStatus !== '锁定中' && (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            </CardContent>
+          </CollapsibleContent>
+        </Collapsible>
+      </Card>
 
       {/* Map Controls */}
       <Card>
