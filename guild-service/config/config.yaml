@@ -1,0 +1,77 @@
+server:
+  host: "0.0.0.0"
+  port: 9005
+  mode: "debug"
+
+mysql:
+  host: "127.0.0.1"
+  port: 3306
+  user: "root"
+  password: "123456"
+  database: "jiuzhou"
+  charset: "utf8mb4"
+  max_idle_conns: 10
+  max_open_conns: 100
+  conn_max_lifetime: 3600
+
+redis:
+  host: "127.0.0.1"
+  port: 6379
+  password: ""
+  db: 2
+  pool_size: 20
+
+jwt:
+  secret: "jiuzhou-guild-service-jwt-secret-key-2024"
+  issuer: "jiuzhou-server"
+  access_ttl: 7200
+  refresh_ttl: 604800
+
+guild:
+  # 联盟基础配置
+  max_guild_name_length: 12
+  min_guild_name_length: 2
+  max_declaration_length: 64
+  default_max_members: 30
+  level_member_bonus: 5          # 每级增加成员上限
+  create_cost_gold: 500          # 创建消耗金币
+  disband_cooldown_hours: 24     # 解散后重建冷却(小时)
+  kick_cooldown_hours: 2         # 被踢后入盟冷却(小时)
+  join_requirement_level: 10     # 入盟最低玩家等级
+
+  # 联盟战争配置
+  war_declare_cost: 1000         # 宣战消耗金币
+  war_prepare_hours: 2           # 战争准备时间(小时)
+  war_duration_hours: 24         # 战争持续时间(小时)
+  war_cooldown_hours: 48         # 战争冷却时间(小时)
+  war_max_concurrent: 3          # 同时进行最大战争数
+  war_surrender_city_penalty: 1  # 投降损失城池数
+
+  # 战斗协作配置
+  coop_max_contributors: 5       # 最大协作人数
+  coop_join_window_secs: 600     # 协作加入窗口(秒)
+  coop_min_army_power: 500       # 最低参战兵力
+  coop_bonus_per_member: 0.08    # 每个协作者战力加成
+  coop_leader_bonus: 0.15        # 发起者额外加成
+
+  # 联盟等级配置
+  level_exp_threshold:
+    - level: 1
+      exp: 0
+      member_limit: 30
+    - level: 2
+      exp: 1000
+      member_limit: 35
+    - level: 3
+      exp: 5000
+      member_limit: 40
+    - level: 4
+      exp: 15000
+      member_limit: 45
+    - level: 5
+      exp: 50000
+      member_limit: 50
+
+  # 联盟科技配置
+  tech_research_speed_base: 1.0
+  max_active_research: 2
