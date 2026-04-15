@@ -1,0 +1,36 @@
+server:
+  host: "0.0.0.0"
+  port: 9008
+  mode: "debug" # debug / release / test
+
+mysql:
+  host: "127.0.0.1"
+  port: 3306
+  user: "root"
+  password: "123456"
+  database: "jiuzhou"
+  charset: "utf8mb4"
+  max_idle_conns: 10
+  max_open_conns: 100
+  conn_max_lifetime: 3600 # seconds
+
+redis:
+  host: "127.0.0.1"
+  port: 6379
+  password: ""
+  db: 0
+  pool_size: 20
+
+jwt:
+  secret: "jiuzhou-user-service-jwt-secret-key-2024"
+  issuer: "jiuzhou-server"
+  access_ttl: 7200       # 2 hours (seconds)
+  refresh_ttl: 604800    # 7 days
+
+cache:
+  season_ttl: 300        # 5 minutes
+
+season:
+  duration_days: 60      # 赛季持续天数
+  check_interval: 60     # 结算检查间隔(秒)
+  prepare_hours: 24      # 提前预警时间(小时)
