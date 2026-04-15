@@ -66,3 +66,23 @@ Stage Summary:
   - guild-service: internal/service/guild_service.go, internal/dao/guild_dao.go
 - 8个核心逻辑断裂全部修复，跨服务经济循环打通
 - 系统健康度从35/100提升至约85/100（剩余扣分项：部分服务缺go.sum、quest-service未检查）
+---
+Task ID: 1
+Agent: Main Agent
+Task: Generate "武将表现系统" (Hero Performance System) for the game
+
+Work Log:
+- Created hero data model with 6 Warring States/Chu-Han heroes (项羽, 刘邦, 韩信, 荆轲, 白起, 张良)
+- Generated 6 AI hero concept art portraits using z-ai image CLI (768x1344 portrait format)
+- Built comprehensive Next.js dashboard page (2190 lines) with 4 tabs: Hero Gallery, SD Prompt Generator, Skill System, Unity Code
+- Created 3 backend API routes: /api/heroes, /api/skills, /api/sd-prompt
+- Included 5 complete Unity C# files for skill system: HeroPerformanceSystem.cs, SkillTypes.cs, ParticleEffectFactory.cs, SkillAudioController.cs, SkillAnimationController.cs
+- Implemented animated skill demos (AOE, Single Burst, Control, Buff) using framer-motion
+- All lint checks pass, dev server returns 200
+
+Stage Summary:
+- 6 hero portraits generated at /public/heroes/*.png
+- Complete dashboard at src/app/page.tsx with hero gallery, SD prompt generator, skill system demos, Unity code viewer
+- 3 API routes created for hero/skill data management
+- 5 Unity C# code files for the skill performance system with copy-to-clipboard functionality
+- Sticky footer, responsive design, dark Warring States theme
