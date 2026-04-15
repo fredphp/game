@@ -434,3 +434,266 @@ model MailStats {
 
   @@index([userId])
 }
+
+// ==================== 游戏核心实体 ====================
+
+/// 游戏玩家
+model GamePlayer {
+  id            Int      @id @default(autoincrement())
+  uid           String   @unique                    // 玩家唯一ID (如 UID10001)
+  nickname      String                              // 昵称
+  level         Int      @default(1)                 // 等级
+  vipLevel      Int      @default(0)                 // VIP等级
+  power         Int      @default(0)                 // 战力
+  gold          Int      @default(0)                 // 金币
+  diamond       Int      @default(0)                 // 钻石
+  stamina       Int      @default(100)               // 体力
+  maxStamina    Int      @default(100)               // 最大体力
+  prestige      Int      @default(0)                 // 声望
+  exp           Int      @default(0)                 // 经验值
+  guildId       Int?                                // 联盟ID
+  serverId      Int      @default(1)                 // 服务器ID
+  status        Int      @default(1)                 // 1=正常 0=封禁 2=冻结
+  lastLoginAt   DateTime?                           // 最后登录
+  lastLoginIp   String   @default("")
+  registerAt    DateTime @default(now())             // 注册时间
+  totalRecharge Int      @default(0)                 // 累计充值(分)
+  heroCount     Int      @default(0)                 // 拥有武将数
+  battleCount   Int      @default(0)                 // 战斗次数
+  winCount      Int      @default(0)                 // 胜利次数
+  cityCount     Int      @default(0)                 // 占领城池数
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([guildId])
+  @@index([serverId])
+  @@index([status])
+  @@index([level])
+  @@index([power])
+}
+
+/// 武将/卡牌表
+model Hero {
+  id           Int      @id @default(autoincrement())
+  heroKey      String   @unique                     // 武将唯一标识
+  name         String                               // 武将名称
+  title        String   @default("")                 // 称号 (如 "天下无双")
+  rarity       String   @default("R")                // 品质: SSR/SR/R
+  faction      String   @default("qun")              // 阵营: wei/shu/wu/qun
+  type         String   @default("infantry")         // 兵种: infantry/cavalry/archer/strategist
+  baseAtk      Int      @default(100)                // 基础攻击
+  baseDef      Int      @default(100)                // 基础防御
+  baseHp       Int      @default(1000)               // 基础血量
+  baseSpeed    Int      @default(20)                 // 基础速度
+  growthAtk    Int      @default(5)                  // 攻击成长
+  growthDef    Int      @default(3)                  // 防御成长
+  growthHp     Int      @default(50)                 // 血量成长
+  skillJson    String   @default("[]")               // 技能JSON
+  description  String   @default("")                 // 描述
+  status       Int      @default(1)                  // 1=启用 0=禁用
+  drawCount    Int      @default(0)                  // 被抽次数
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([rarity])
+  @@index([faction])
+  @@index([type])
+  @@index([status])
+}
+
+/// 玩家武将(背包)
+model PlayerHero {
+  id          Int      @id @default(autoincrement())
+  playerId    Int                                 // 玩家ID
+  heroId      Int                                 // 武将ID
+  heroName    String   @default("")                // 冗余: 武将名
+  rarity      String   @default("R")               // 冗余: 品质
+  starLevel   Int      @default(1)                 // 星级
+  level       Int      @default(1)                 // 等级
+  exp         Int      @default(0)                 // 经验
+  isLocked    Boolean  @default(false)             // 是否锁定
+  obtainedAt  String   @default("")                // 获取方式: gacha/shop/reward
+  obtainedFrom String  @default("")                // 来源详情
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([playerId])
+  @@index([heroId])
+  @@index([rarity])
+}
+
+/// 常驻卡池
+model CardPool {
+  id            Int      @id @default(autoincrement())
+  name          String                              // 卡池名称
+  type          String   @default("normal")         // 类型: normal/limited/faction/start/mix
+  typeName      String   @default("常驻")            // 类型显示名
+  description   String   @default("")                 // 描述
+  status        Int      @default(1)                  // 1=开启 0=关闭
+  startTime     String   @default("")                 // 开始时间
+  endTime       String   @default("")                 // 结束时间
+  ssrRate       Float    @default(2.0)               // SSR概率(%)
+  srRate        Float    @default(10.0)              // SR概率(%)
+  rRate         Float    @default(88.0)              // R概率(%)
+  pityCount     Int      @default(60)                 // 软保底
+  hardPityCount Int      @default(80)                 // 硬保底
+  upHeroId      Int?                                // UP英雄ID
+  upHeroName    String   @default("-")               // UP英雄名
+  totalDraws    Int      @default(0)                  // 总抽数
+  todayDraws    Int      @default(0)                  // 今日抽数
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([type])
+  @@index([status])
+}
+
+/// 联盟/公会
+model Guild {
+  id          Int      @id @default(autoincrement())
+  name        String                              // 联盟名称
+  leaderId    Int                                 // 盟主ID
+  leaderName  String   @default("")                // 盟主名
+  memberCount Int      @default(1)                 // 成员数
+  maxMembers  Int      @default(50)                // 最大成员数
+  level       Int      @default(1)                 // 联盟等级
+  exp         Int      @default(0)                 // 联盟经验
+  notice      String   @default("")                // 公告
+  cityCount   Int      @default(0)                 // 占领城池数
+  totalPower  Int      @default(0)                 // 总战力
+  rank        Int      @default(0)                 // 排名
+  status      Int      @default(1)                 // 1=正常 0=解散
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([leaderId])
+  @@index([rank])
+  @@index([status])
+}
+
+/// 联盟成员
+model GuildMember {
+  id            Int      @id @default(autoincrement())
+  guildId       Int                                 // 联盟ID
+  userId        Int                                 // 玩家ID
+  nickname      String   @default("")                // 玩家昵称
+  level         Int      @default(1)                 // 玩家等级
+  power         Int      @default(0)                 // 玩家战力
+  role          String   @default("member")          // 角色: leader/vice_leader/elder/member
+  contribution  Int      @default(0)                 // 贡献值
+  joinAt        DateTime @default(now())             // 加入时间
+  lastActiveAt  DateTime @default(now())             // 最后活跃
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([guildId])
+  @@index([userId])
+  @@unique([guildId, userId])
+}
+
+/// 城池
+model City {
+  id            Int      @id @default(autoincrement())
+  name          String                              // 城池名
+  x             Int      @default(0)                 // X坐标
+  y             Int      @default(0)                 // Y坐标
+  level         Int      @default(1)                 // 城池等级
+  faction       String   @default("中立")             // 所属阵营
+  ownerId       Int?                                // 占领者ID
+  ownerName     String   @default("")                // 占领者名
+  guildId       Int?                                // 所属联盟ID
+  guildName     String   @default("")                // 所属联盟名
+  resourceType  String   @default("粮食")            // 资源类型
+  resourceLevel Int      @default(1)                 // 资源等级
+  defense       Int      @default(1000)              // 防御值
+  garrison      Int      @default(0)                 // 驻军数
+  status        Int      @default(1)                 // 1=正常 0=废弃
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([ownerId])
+  @@index([guildId])
+  @@index([faction])
+  @@index([level])
+}
+
+/// 行军队列
+model MarchQueue {
+  id          Int      @id @default(autoincrement())
+  userId      Int                                 // 玩家ID
+  userName    String   @default("")                // 玩家名
+  fromCityId  Int                                 // 出发城池
+  fromCityName String  @default("")                // 出发城池名
+  toCityId    Int                                 // 目标城池
+  toCityName  String   @default("")                // 目标城池名
+  troops      Int      @default(0)                 // 兵力
+  heroName    String   @default("")                // 领队武将
+  status      String   @default("marching")        // 状态: marching/arrived/returning/cancelled
+  startTime   String   @default("")                // 出发时间
+  arriveTime  String   @default("")                // 到达时间
+  duration    Int      @default(0)                 // 行军时长(秒)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+/// 订单表
+model GameOrder {
+  id           Int      @id @default(autoincrement())
+  orderNo      String   @unique                    // 订单号
+  userId       Int                                 // 玩家ID
+  nickname     String   @default("")                // 玩家昵称
+  productType  String   @default("diamond")         // 商品类型: diamond/monthly/gift/vip
+  productName  String   @default("")                // 商品名称
+  amount       Int      @default(0)                 // 金额(分)
+  diamond      Int      @default(0)                 // 获得钻石
+  bonus        Int      @default(0)                 // 赠送钻石
+  status       Int      @default(0)                 // 状态: 0待支付 1已支付 2已发货 3已退款 4已关闭
+  statusText   String   @default("待支付")           // 状态文本
+  payMethod    String   @default("")                // 支付方式
+  tradeNo      String   @default("")                // 第三方交易号
+  paidAt       DateTime?                           // 支付时间
+  deliveredAt  DateTime?                           // 发货时间
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+  @@index([productType])
+  @@index([status])
+  @@index([createdAt])
+}
+
+/// 系统配置
+model GameConfig {
+  id          Int      @id @default(autoincrement())
+  configKey   String   @unique                    // 配置键
+  name        String                              // 配置名
+  value       String   @default("")                // 配置值
+  type        String   @default("string")          // 类型: string/number/boolean/json
+  group       String   @default("global")          // 分组: gacha/map/battle/global/activity/payment/vip/guild
+  description String   @default("")                // 描述
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([group])
+}
+
+/// 操作日志
+model GmLog {
+  id          Int      @id @default(autoincrement())
+  operatorId  Int                                 // 操作者ID
+  operatorName String  @default("")                // 操作者名
+  targetId    Int      @default(0)                 // 目标ID
+  targetType  String   @default("user")            // 目标类型
+  action      String   @default("")                // 操作类型
+  detail      String   @default("")                // 操作详情
+  ip          String   @default("")                // IP
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([operatorId])
+  @@index([action])
+  @@index([createdAt])
+}
