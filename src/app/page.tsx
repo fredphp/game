@@ -1,1457 +1,1261 @@
-'use client'
+'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import React, { useRef } from 'react';
+import { motion, useInView } from 'framer-motion';
 import {
-  LayoutDashboard, AlertTriangle, Network, GitBranch,
-  Package, Map, Server, Shield, X, Menu, ChevronDown,
-  CircleDot, ArrowRight, CheckCircle2, XCircle, AlertOctagon,
-  ExternalLink, Zap, Clock, Target, Bug, Wrench,
-  ChevronRight, Activity, Layers, Database, Lock,
-  Gamepad2, Users, Swords, CreditCard, ScrollText, BarChart3,
-  Crown, Fuel, UserPlus, RotateCcw, TrendingUp
-} from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
-import { Progress } from '@/components/ui/progress'
-import { cn } from '@/lib/utils'
+  Palette, Layers, Swords, Sparkles, Shield, Map, FileTree,
+  ChevronRight, Star, Crown, Gem, Zap, Eye, Mountain,
+  Droplets, Castle, Hexagon, BookOpen, ScrollText, LayoutGrid,
+  TreePine, Code2, FolderTree, ArrowDownRight, CircleDot,
+  Flame, ShieldCheck, Crosshair, Home, User, Package,
+  Swords as SwordIcon, MapPin, ShoppingBag, Users, Compass
+} from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
 
-// ══════════════════════════════════════════════════════════════
-// DATA DEFINITIONS
-// ══════════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════
+   Constants & Design Tokens
+   ═══════════════════════════════════════════ */
 
-type SectionId = 'overview' | 'issues' | 'dependency' | 'flow-breaks' | 'missing' | 'roadmap'
+const COLORS = {
+  InkPaper: '#F5F0E8',
+  InkDark: '#1A1A2E',
+  CinnabarRed: '#C23B22',
+  BronzeGold: '#C4973B',
+  LacquerBlack: '#0A0B10',
+  BambooYellow: '#D4A017',
+  SilkWhite: '#FAF8F5',
+  JadeGreen: '#2E8B57',
+  AmberOrange: '#D97706',
+};
 
-interface ServiceData {
-  name: string
-  port: number
-  status: 'compile-fail' | 'compile-errors' | 'incomplete' | 'no-entry'
-  statusLabel: string
-  healthScore: number
-  icon: typeof Server
-  color: string
-  gradientFrom: string
-  gradientTo: string
-  issues: string[]
-}
+const RARITY_COLORS = {
+  SSR: { primary: '#FFD700', border: '#DAA520', glow: '#FFD70080', particle: '#FFECB3' },
+  SR:  { primary: '#9B59B6', border: '#8E44AD', glow: '#9B59B680', particle: '#D7BDE2' },
+  R:   { primary: '#2E8B57', border: '#27AE60', glow: '#2E8B5780', particle: '#A9DFBF' },
+  良:  { primary: '#3498DB', border: '#2980B9', glow: '#3498DB80', particle: '#AED6F1' },
+  凡:  { primary: '#95A5A6', border: '#7F8C8D', glow: '#95A5A640', particle: '#D5D8DC' },
+};
 
-interface CriticalIssue {
-  service: string
-  severity: 'critical' | 'high' | 'medium'
-  category: string
-  description: string
-  file?: string
-  line?: number
-}
+const FACTION_COLORS = {
+  魏: { primary: '#3498DB', light: '#5DADE2', desc: '#AED6F1' },
+  蜀: { primary: '#E74C3C', light: '#EC7063', desc: '#F5B7B1' },
+  吴: { primary: '#27AE60', light: '#52BE80', desc: '#A9DFBF' },
+  群: { primary: '#8E44AD', light: '#A569BD', desc: '#D7BDE2' },
+};
 
-interface LogicBreak {
-  id: number
-  title: string
-  icon: typeof Zap
-  color: string
-  gradient: string
-  flowSteps: { label: string; status: 'ok' | 'broken' | 'missing'; detail: string }[]
-  impact: string
-}
+const LAYER_INFO = [
+  { name: 'Background', z: 0, icon: Layers, desc: '背景层：场景背景、环境特效', color: '#4A5568' },
+  { name: 'Scene', z: 100, icon: Mountain, desc: '场景层：3D场景、世界地图', color: '#5B8C5A' },
+  { name: 'Main', z: 200, icon: Home, desc: '主界面：主城、功能面板', color: '#C4973B' },
+  { name: 'Popup', z: 300, icon: Package, desc: '弹窗层：对话框、提示框', color: '#C23B22' },
+  { name: 'Top', z: 400, icon: Eye, desc: '顶层：加载、断线重连', color: '#9B59B6' },
+  { name: 'Guide', z: 500, icon: Compass, desc: '引导层：新手引导、提示', color: '#D97706' },
+];
 
-interface MissingModule {
-  service: string
-  module: string
-  status: 'missing' | 'partial' | 'stub'
-  impact: string
-  category: string
-}
+const ANIMATIONS = [
+  { name: 'InkFadeIn', cn: '水墨淡入', desc: '宣纸展开效果，元素从透明渐变为可见', duration: '0.6s', tag: '通用' },
+  { name: 'StampPress', cn: '印章盖压', desc: '先放大后弹回，模拟盖章按压质感', duration: '0.4s', tag: '通用' },
+  { name: 'GoldShimmer', cn: '金光闪烁', desc: '暗色蓄力→金光爆发→稳定，SSR专属', duration: '1.2s', tag: 'SSR' },
+  { name: 'PurpleMist', cn: '紫雾弥漫', desc: '紫雾渐入→稳定呼吸循环，SR专属', duration: '0.8s', tag: 'SR' },
+  { name: 'BorderBreathe', cn: '边框呼吸', desc: '持续循环发光效果，高亮重点元素', duration: '循环', tag: '通用' },
+  { name: 'BambooSlide', cn: '竹简滑入', desc: '从侧面滑入展开，模拟竹简卷轴', duration: '0.5s', tag: '面板' },
+  { name: 'SealStamp', cn: '印章盖章', desc: '缩放+旋转+色变三段动画', duration: '0.6s', tag: '标记' },
+];
 
-interface RoadmapItem {
-  priority: number
-  title: string
-  services: string[]
-  effort: 'S' | 'M' | 'L'
-  impact: 'critical' | 'high' | 'medium'
-  description: string
-}
+const FILE_TREE = [
+  { name: 'Assets/Scripts/', type: 'folder' },
+  { name: '  Core/', type: 'folder', status: 'existing' },
+  { name: '    GameEntry.cs', type: 'file', status: 'existing' },
+  { name: '    EventBus.cs', type: 'file', status: 'existing' },
+  { name: '    UI/', type: 'folder', status: 'new' },
+  { name: '      UIStyleConfig.cs', type: 'file', status: 'new', desc: '全局样式配置' },
+  { name: '      InkWashEffect.cs', type: 'file', status: 'new', desc: '水墨特效组件' },
+  { name: '      HeroCardRenderer.cs', type: 'file', status: 'new', desc: '武将卡渲染' },
+  { name: '      UIBase.cs', type: 'file', status: 'existing' },
+  { name: '      UILayer.cs', type: 'file', status: 'existing' },
+  { name: '      UIManager.cs', type: 'file', status: 'existing' },
+  { name: '  Module/', type: 'folder', status: 'existing' },
+  { name: '    Login/', type: 'folder', status: 'existing' },
+  { name: '      LoginPanel.cs', type: 'file', status: 'existing' },
+  { name: '    MainCity/', type: 'folder', status: 'refactored' },
+  { name: '      MainCityPanel.cs', type: 'file', status: 'refactored', desc: '主城重构' },
+  { name: '    Card/', type: 'folder', status: 'existing' },
+  { name: '      CardCollectionPanel.cs', type: 'file', status: 'existing' },
+  { name: '      GachaPanel.cs', type: 'file', status: 'existing' },
+  { name: '      DeckEditPanel.cs', type: 'file', status: 'existing' },
+  { name: '    Battle/', type: 'folder', status: 'existing' },
+  { name: '      BattlePanel.cs', type: 'file', status: 'existing' },
+  { name: '    Map/', type: 'folder', status: 'refactored' },
+  { name: '      HexMapRenderer.cs', type: 'file', status: 'refactored', desc: '六角地图' },
+  { name: '      MapPanel.cs', type: 'file', status: 'existing' },
+  { name: '    Quest/', type: 'folder', status: 'existing' },
+  { name: '      QuestPanel.cs', type: 'file', status: 'existing' },
+  { name: '    Shop/', type: 'folder', status: 'existing' },
+  { name: '      ShopPanel.cs', type: 'file', status: 'existing' },
+  { name: '    Guild/', type: 'folder', status: 'existing' },
+  { name: '      GuildPanel.cs', type: 'file', status: 'existing' },
+  { name: '  Data/', type: 'folder', status: 'existing' },
+  { name: '    User.cs', type: 'file', status: 'existing' },
+  { name: '    CardModel.cs', type: 'file', status: 'existing' },
+  { name: '    MapModel.cs', type: 'file', status: 'existing' },
+  { name: '    BattleModel.cs', type: 'file', status: 'existing' },
+];
 
-const SERVICES: ServiceData[] = [
-  {
-    name: 'user-service', port: 9001,
-    status: 'compile-fail', statusLabel: '❌ Won\'t compile',
-    healthScore: 35, icon: Users, color: 'text-red-400',
-    gradientFrom: 'from-red-500/20', gradientTo: 'to-red-900/10',
-    issues: [
-      'jwtPkg.IsTokenBlacklisted doesn\'t exist in pkg/jwt (middleware/auth.go:34)',
-      'pkgresponse.ErrUserNotFound is int, returned as error (service/user_service.go:184)',
-      'ALL 9 internal API endpoints missing (/api/v1/internal/*)',
-      '`food` column missing from schema but AddFood/DeductFood exist in DAO',
-      '`power` field missing from model/schema but service client references it',
-      'DeductGold doesn\'t check balance (unlike DeductDiamonds)',
-      'AddExp claims "auto level-up" but has no level-up logic',
-      'No refresh token endpoint',
-      'Hardcoded TTL values ignore config',
-    ],
-  },
-  {
-    name: 'card-service', port: 9003,
-    status: 'compile-fail', statusLabel: '❌ Won\'t compile',
-    healthScore: 25, icon: Layers, color: 'text-red-400',
-    gradientFrom: 'from-red-500/20', gradientTo: 'to-red-900/10',
-    issues: [
-      'ALL imports use `user-service/` instead of `card-service/` - won\'t compile',
-      'Gacha pulls NEVER deduct diamonds - FREE unlimited pulls (economy exploit)',
-      'No distributed transaction (partial failure = data corruption)',
-      'Card creation not in DB transaction',
-      'No card upgrade/level-up/merge system',
-      'No deck management (no table, no code)',
-      'UP card rate system is no-op',
-      'Soft pity formula inverted (decreases instead of increases)',
-      'Port conflict: serviceclient says 9002, config says 9003',
-      'Gacha records saved async with errors silently discarded',
-    ],
-  },
-  {
-    name: 'battle-service', port: 9002,
-    status: 'compile-fail', statusLabel: '❌ Won\'t compile',
-    healthScore: 20, icon: Swords, color: 'text-red-400',
-    gradientFrom: 'from-red-500/20', gradientTo: 'to-red-900/10',
-    issues: [
-      'ALL imports use `user-service/` - won\'t compile',
-      'Missing pkg/ directory entirely',
-      'NormalSkill never assigned → nil pointer panic on every attack',
-      'Battle rewards NEVER distributed (no AddGold/AddExp calls)',
-      'Hardcoded card data, never calls card-service',
-      'Buff effects never expire properly (ATK/DEF/SPD permanently modified)',
-      'Stun effect tracked but never enforced',
-      'Shield buff has no damage reduction',
-      'Debuff applied to ALL enemies, not just targets',
-      'Speed permanently modified each round',
-      'No PVP implementation',
-      'Battle record save errors silently ignored',
-    ],
-  },
-  {
-    name: 'map-service', port: 9004,
-    status: 'incomplete', statusLabel: '✅ Has pkg/ but incomplete',
-    healthScore: 55, icon: Map, color: 'text-amber-400',
-    gradientFrom: 'from-amber-500/20', gradientTo: 'to-amber-900/10',
-    issues: [
-      'Food cost calculated but NEVER deducted from user',
-      'Resource refund on recall not implemented',
-      'No march source city ownership validation',
-      'BFS path algorithm doesn\'t prioritize by distance (not Dijkstra)',
-      'N+1 query in GetMapOverview (36 cities = 36 queries)',
-      'No internal API endpoints',
-      'Missing go.sum',
-      'Module path not importable',
-    ],
-  },
-  {
-    name: 'guild-service', port: 9005,
-    status: 'compile-fail', statusLabel: '❌ Won\'t compile',
-    healthScore: 40, icon: Shield, color: 'text-red-400',
-    gradientFrom: 'from-red-500/20', gradientTo: 'to-red-900/10',
-    issues: [
-      '`e.dao.UpdateBattleContributors` doesn\'t exist → compile error (war_engine.go:192)',
-      'Missing UpdateGuild handler (registered but not implemented)',
-      'Missing DisbandGuild handler (registered but not implemented)',
-      'ApproveApplication doesn\'t actually add member',
-      'JWT doesn\'t set guild_id context → DeclareWar always fails',
-      'Port swapped with map-service in serviceclient',
-      'Technology system (schema + model) has zero implementation',
-      'No guild creation cost (gold not deducted)',
-      'No war cooldown enforcement',
-      'Redis caching keys defined but never used',
-    ],
-  },
-  {
-    name: 'payment-service', port: 9006,
-    status: 'compile-fail', statusLabel: '❌ Won\'t compile (undefined fn)',
-    healthScore: 45, icon: CreditCard, color: 'text-red-400',
-    gradientFrom: 'from-red-500/20', gradientTo: 'to-red-900/10',
-    issues: [
-      '`generateRefundNo()` undefined → won\'t compile',
-      'Delivery NEVER calls user-service to add resources (diamonds/gold not credited)',
-      'Callback endpoint has NO signature verification (forgery exploit)',
-      'Diamond amount ALWAYS hardcoded to 100 regardless of product',
-      'VIP level calculation wrong (levels 1-2 unreachable)',
-      'Gift pack purchase limit not enforced',
-      'Growth fund milestone claim has no level check',
-      'Refund doesn\'t update order status or deduct resources',
-    ],
-  },
-  {
-    name: 'quest-service', port: 9007,
-    status: 'no-entry', statusLabel: '❌ No entry point',
-    healthScore: 10, icon: ScrollText, color: 'text-red-500',
-    gradientFrom: 'from-red-600/20', gradientTo: 'to-red-900/10',
-    issues: [
-      'NO cmd/main.go entry point',
-      'NO service layer, NO handler layer, NO router',
-      'JWT IsTokenBlacklisted never assigned → all auth requests fail',
-      'Achievement completion uses wrong field (RewardPoints instead of target)',
-      'Daily task uniqueness key uses datetime instead of date',
-      'JWT secret copy-pasted from user-service',
-      'Not in serviceclient URL map',
-    ],
-  },
-  {
-    name: 'admin-service', port: 9100,
-    status: 'compile-errors', statusLabel: '⚠️ Has compile errors',
-    healthScore: 50, icon: BarChart3, color: 'text-amber-400',
-    gradientFrom: 'from-amber-500/20', gradientTo: 'to-amber-900/10',
-    issues: [
-      'Duplicate function names in admin_handler + log_handler → compile error',
-      'GetActionLogs parameter signature mismatch',
-      'logwriter.Init() never called',
-      'RBACCheck middleware is stub (no permission enforcement)',
-      'GetDailyStats/GetRetentionStats return hardcoded sample data',
-      'Redis initialized but never used',
-      'Frontend NOT connected to Go backend (uses local SQLite)',
-    ],
-  },
-]
+/* ═══════════════════════════════════════════
+   Animation Keyframes (CSS)
+   ═══════════════════════════════════════════ */
 
-const CRITICAL_ISSUES: CriticalIssue[] = SERVICES.flatMap(s =>
-  s.issues.map((desc, i) => {
-    const isCompile = desc.toLowerCase().includes('compile') || desc.toLowerCase().includes("won't compile") || desc.toLowerCase().includes('undefined')
-    const isEconomy = desc.toLowerCase().includes('deduct') || desc.toLowerCase().includes('credit') || desc.toLowerCase().includes('free') || desc.toLowerCase().includes('hardcoded')
-    const isSecurity = desc.toLowerCase().includes('verification') || desc.toLowerCase().includes('forgery') || desc.toLowerCase().includes('rbac') || desc.toLowerCase().includes('permission')
-    const isData = desc.toLowerCase().includes('never distributed') || desc.toLowerCase().includes('n+1') || desc.toLowerCase().includes('transaction')
+const fadeInUp = {
+  hidden: { opacity: 0, y: 30 },
+  visible: (i: number) => ({
+    opacity: 1, y: 0,
+    transition: { delay: i * 0.08, duration: 0.5, ease: [0.25, 0.1, 0.25, 1] },
+  }),
+};
 
-    let severity: CriticalIssue['severity'] = 'medium'
-    let category = 'logic'
-    if (isCompile || desc.toLowerCase().includes("doesn't exist") || desc.toLowerCase().includes('undefined')) {
-      severity = 'critical'
-      category = 'compile'
-    } else if (isSecurity) {
-      severity = 'critical'
-      category = 'security'
-    } else if (isEconomy || isData) {
-      severity = 'high'
-      category = 'economy'
-    } else if (desc.toLowerCase().includes('missing') || desc.toLowerCase().includes('no ') || desc.toLowerCase().includes('not implemented') || desc.toLowerCase().includes('stub')) {
-      severity = 'high'
-      category = 'missing'
-    } else if (desc.toLowerCase().includes('never') || desc.toLowerCase().includes("doesn't")) {
-      severity = 'high'
-      category = 'logic'
-    } else {
-      category = 'logic'
-    }
-    return { service: s.name, severity, category, description: desc }
-  })
-)
+const staggerContainer = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.06 } },
+};
 
-const LOGIC_BREAKS: LogicBreak[] = [
-  {
-    id: 1, title: '抽卡 → 未扣费', icon: Zap,
-    color: 'text-red-400', gradient: 'from-red-500/10 to-red-900/5',
-    impact: '经济系统崩溃，无限免费抽卡',
-    flowSteps: [
-      { label: '玩家发起抽卡', status: 'ok', detail: '前端调用 gacha API' },
-      { label: 'card-service 抽卡', status: 'ok', detail: '生成卡牌实例' },
-      { label: '扣除钻石', status: 'broken', detail: 'NEVER calls user-service deduct' },
-      { label: '写入记录', status: 'ok', detail: '异步保存（错误被忽略）' },
-    ],
-  },
-  {
-    id: 2, title: '战斗 → 无奖励', icon: Swords,
-    color: 'text-orange-400', gradient: 'from-orange-500/10 to-orange-900/5',
-    impact: '玩家战斗无收益，核心玩法崩溃',
-    flowSteps: [
-      { label: '玩家发起战斗', status: 'ok', detail: '进入战斗流程' },
-      { label: '执行战斗逻辑', status: 'broken', detail: 'NormalSkill 未赋值 → nil panic' },
-      { label: '战斗结算', status: 'missing', detail: 'NEVER calls AddGold/AddExp' },
-      { label: '保存记录', status: 'ok', detail: '保存（错误被忽略）' },
-    ],
-  },
-  {
-    id: 3, title: '充值 → 未到账', icon: CreditCard,
-    color: 'text-red-400', gradient: 'from-red-500/10 to-red-900/5',
-    impact: '付费玩家无法收到资源，法律风险',
-    flowSteps: [
-      { label: '玩家支付', status: 'ok', detail: '第三方支付回调' },
-      { label: '签名验证', status: 'broken', detail: 'NO verification (forgery)' },
-      { label: '发放资源', status: 'missing', detail: 'NEVER calls user-service add' },
-      { label: '写钱包日志', status: 'ok', detail: '写本地假日志（非真实到账）' },
-    ],
-  },
-  {
-    id: 4, title: '行军 → 未消耗粮草', icon: Fuel,
-    color: 'text-amber-400', gradient: 'from-amber-500/10 to-amber-900/5',
-    impact: '粮草经济无效，行军无成本',
-    flowSteps: [
-      { label: '发起行军', status: 'ok', detail: '计算路径和粮草消耗' },
-      { label: '扣除粮草', status: 'broken', detail: '计算但NEVER调用 user-service' },
-      { label: '行军执行', status: 'ok', detail: '移动部队到目标城市' },
-      { label: '资源退还', status: 'missing', detail: '撤军无退还逻辑' },
-    ],
-  },
-  {
-    id: 5, title: '入会 → 未扣金', icon: Crown,
-    color: 'text-amber-400', gradient: 'from-amber-500/10 to-amber-900/5',
-    impact: '创建联盟无成本，联盟泛滥',
-    flowSteps: [
-      { label: '发起创建', status: 'ok', detail: '验证名称等信息' },
-      { label: '扣除金币', status: 'missing', detail: '配置有费用但NEVER扣除' },
-      { label: '创建联盟', status: 'ok', detail: '写入数据库' },
-      { label: '设置会长', status: 'ok', detail: '创建者为会长' },
-    ],
-  },
-  {
-    id: 6, title: '升级 → 无经验', icon: TrendingUp,
-    color: 'text-orange-400', gradient: 'from-orange-500/10 to-orange-900/5',
-    impact: '经验增长但等级不变，养成系统失效',
-    flowSteps: [
-      { label: '获取经验', status: 'ok', detail: 'AddExp 增加经验值' },
-      { label: '检查升级', status: 'broken', detail: '无升级阈值判断逻辑' },
-      { label: '执行升级', status: 'missing', detail: '无等级提升代码' },
-      { label: '更新属性', status: 'missing', detail: '属性不变' },
-    ],
-  },
-  {
-    id: 7, title: '审批 → 未加成员', icon: UserPlus,
-    color: 'text-red-400', gradient: 'from-red-500/10 to-red-900/5',
-    impact: '申请永远无法通过，联盟无法扩员',
-    flowSteps: [
-      { label: '提交申请', status: 'ok', detail: '创建申请记录' },
-      { label: '审批处理', status: 'ok', detail: '会长/副会长审批' },
-      { label: '添加成员', status: 'broken', detail: 'ApproveApplication 未调用 doAddMember' },
-      { label: '更新权限', status: 'missing', detail: '成员权限未生效' },
-    ],
-  },
-  {
-    id: 8, title: '退款 → 无回滚', icon: RotateCcw,
-    color: 'text-red-400', gradient: 'from-red-500/10 to-red-900/5',
-    impact: '退款后资源不扣除，双重获利',
-    flowSteps: [
-      { label: '发起退款', status: 'ok', detail: '创建退款记录' },
-      { label: '更新订单', status: 'broken', detail: '订单状态未更新' },
-      { label: '扣除资源', status: 'missing', detail: '已发放资源未回收' },
-      { label: '退款完成', status: 'ok', detail: '记录已创建（假完成）' },
-    ],
-  },
-]
+/* ═══════════════════════════════════════════
+   Hexagon SVG Component
+   ═══════════════════════════════════════════ */
 
-const MISSING_MODULES: MissingModule[] = [
-  { service: 'user-service', module: 'Internal API Endpoints (/api/v1/internal/*)', status: 'missing', impact: '所有服务间调用全部失败', category: 'API' },
-  { service: 'user-service', module: 'Refresh Token Endpoint', status: 'missing', impact: 'Token 过期后必须重新登录', category: 'Auth' },
-  { service: 'user-service', module: 'Schema: food column, power field', status: 'missing', impact: '粮草系统和战力系统不可用', category: 'Schema' },
-  { service: 'user-service', module: 'Level-up Logic in AddExp', status: 'missing', impact: '玩家永远无法升级', category: 'Logic' },
-  { service: 'user-service', module: 'Balance Check in DeductGold', status: 'missing', impact: '金币可扣为负数', category: 'Economy' },
-  { service: 'card-service', module: 'Diamond Deduction in Gacha', status: 'missing', impact: '免费无限抽卡，经济崩坏', category: 'Economy' },
-  { service: 'card-service', module: 'Distributed Transaction', status: 'missing', impact: '部分失败导致数据不一致', category: 'Data' },
-  { service: 'card-service', module: 'Card Upgrade/Level-up/Merge', status: 'missing', impact: '卡牌养成不可用', category: 'Feature' },
-  { service: 'card-service', module: 'Deck Management (table + code)', status: 'missing', impact: '无法组队/切换卡组', category: 'Feature' },
-  { service: 'card-service', module: 'Correct Import Paths', status: 'missing', impact: '整个服务无法编译', category: 'Compile' },
-  { service: 'battle-service', module: 'pkg/ Directory', status: 'missing', impact: '无公共工具包', category: 'Compile' },
-  { service: 'battle-service', module: 'Correct Import Paths', status: 'missing', impact: '整个服务无法编译', category: 'Compile' },
-  { service: 'battle-service', module: 'NormalSkill Assignment', status: 'missing', impact: '每次攻击 nil panic', category: 'Logic' },
-  { service: 'battle-service', module: 'Battle Reward Distribution', status: 'missing', impact: '战斗无收益', category: 'Economy' },
-  { service: 'battle-service', module: 'Card Data from card-service', status: 'missing', impact: '使用硬编码数据', category: 'Integration' },
-  { service: 'battle-service', module: 'Buff/Debuff Expiry & Enforcement', status: 'missing', impact: '属性永久修改', category: 'Logic' },
-  { service: 'battle-service', module: 'PVP Implementation', status: 'missing', impact: '无玩家对战', category: 'Feature' },
-  { service: 'map-service', module: 'Food Deduction via user-service', status: 'missing', impact: '行军无粮草消耗', category: 'Integration' },
-  { service: 'map-service', module: 'Resource Refund on Recall', status: 'missing', impact: '撤军不退资源', category: 'Logic' },
-  { service: 'map-service', module: 'Internal API Endpoints', status: 'missing', impact: '其他服务无法调用', category: 'API' },
-  { service: 'guild-service', module: 'UpdateGuild Handler', status: 'missing', impact: '路由注册但无实现', category: 'API' },
-  { service: 'guild-service', module: 'DisbandGuild Handler', status: 'missing', impact: '路由注册但无实现', category: 'API' },
-  { service: 'guild-service', module: 'doAddMember Call in ApproveApplication', status: 'missing', impact: '审批无效', category: 'Logic' },
-  { service: 'guild-service', module: 'Technology System Implementation', status: 'missing', impact: '科技树不可用', category: 'Feature' },
-  { service: 'guild-service', module: 'Guild Creation Cost Deduction', status: 'missing', impact: '免费创建联盟', category: 'Economy' },
-  { service: 'payment-service', module: 'generateRefundNo Function', status: 'missing', impact: '无法编译', category: 'Compile' },
-  { service: 'payment-service', module: 'Resource Delivery via user-service', status: 'missing', impact: '充值不到账', category: 'Integration' },
-  { service: 'payment-service', module: 'Callback Signature Verification', status: 'missing', impact: '可伪造支付回调', category: 'Security' },
-  { service: 'payment-service', module: 'Dynamic Diamond Amount', status: 'missing', impact: '所有商品只给100钻', category: 'Economy' },
-  { service: 'quest-service', module: 'cmd/main.go Entry Point', status: 'missing', impact: '服务完全无法启动', category: 'Compile' },
-  { service: 'quest-service', module: 'Service/Handler/Router Layers', status: 'missing', impact: '无业务代码', category: 'Architecture' },
-  { service: 'admin-service', module: 'RBAC Permission Enforcement', status: 'stub', impact: '任何人都可访问所有功能', category: 'Security' },
-  { service: 'admin-service', module: 'Real Stats Data (not hardcoded)', status: 'stub', impact: '数据统计无效', category: 'Data' },
-  { service: 'admin-service', module: 'Go Backend Connection', status: 'missing', impact: '前端用本地SQLite', category: 'Integration' },
-]
-
-const ROADMAP: RoadmapItem[] = [
-  { priority: 1, title: '修复全部编译错误', services: ['card-service', 'battle-service', 'payment-service', 'quest-service'], effort: 'L', impact: 'critical', description: '修正import路径、添加缺失函数、创建entry point。这是所有后续工作的前提。' },
-  { priority: 2, title: '实现 user-service Internal API', services: ['user-service'], effort: 'L', impact: 'critical', description: '实现全部9个internal端点，使其他服务能正常调用用户操作（扣钻、加经验等）。' },
-  { priority: 3, title: '修复支付回调安全验证', services: ['payment-service'], effort: 'M', impact: 'critical', description: '添加签名验证，修复钻石发放逻辑，动态读取商品金额。' },
-  { priority: 4, title: '修复抽卡扣费 + 分布式事务', services: ['card-service', 'user-service'], effort: 'L', impact: 'critical', description: '抽卡时调用user-service扣钻，添加事务保护。' },
-  { priority: 5, title: '修复战斗核心逻辑', services: ['battle-service'], effort: 'L', impact: 'critical', description: '修复NormalSkill、添加奖励发放、修复Buff/Debuff系统。' },
-  { priority: 6, title: '修复联盟审批 + 宣战逻辑', services: ['guild-service'], effort: 'M', impact: 'high', description: 'ApproveApplication调用doAddMember，JWT设置guild_id。' },
-  { priority: 7, title: '实现卡牌养成系统', services: ['card-service'], effort: 'L', impact: 'high', description: '实现卡牌升级、突破、合并，以及卡组管理。' },
-  { priority: 8, title: '修复map-service资源联动', services: ['map-service', 'user-service'], effort: 'M', impact: 'high', description: '行军扣粮草、撤军退资源、N+1查询优化。' },
-  { priority: 9, title: '实现 quest-service 完整架构', services: ['quest-service'], effort: 'L', impact: 'high', description: '创建service/handler/router层，修复daily task唯一键。' },
-  { priority: 10, title: '加固 admin-service 安全', services: ['admin-service'], effort: 'M', impact: 'medium', description: 'RBAC权限 enforcement，连接Go后端替换SQLite。' },
-  { priority: 11, title: '实现联盟科技系统', services: ['guild-service'], effort: 'L', impact: 'medium', description: '技术系统已有schema/model，需要完整业务实现。' },
-  { priority: 12, title: '实现 PVP 战斗模式', services: ['battle-service'], effort: 'L', impact: 'medium', description: '玩家对战、排行榜、匹配系统。' },
-]
-
-const NAV_SECTIONS = [
-  { id: 'overview' as SectionId, label: '系统概览', icon: LayoutDashboard },
-  { id: 'issues' as SectionId, label: '关键问题', icon: AlertTriangle },
-  { id: 'dependency' as SectionId, label: '依赖图谱', icon: Network },
-  { id: 'flow-breaks' as SectionId, label: '逻辑断链', icon: GitBranch },
-  { id: 'missing' as SectionId, label: '缺失模块', icon: Package },
-  { id: 'roadmap' as SectionId, label: '修复路线图', icon: Target },
-]
-
-const SEVERITY_CONFIG = {
-  critical: { label: '致命', color: 'bg-red-500/15 text-red-400 border-red-500/30', dot: 'bg-red-500' },
-  high: { label: '严重', color: 'bg-orange-500/15 text-orange-400 border-orange-500/30', dot: 'bg-orange-500' },
-  medium: { label: '中等', color: 'bg-amber-500/15 text-amber-400 border-amber-500/30', dot: 'bg-amber-500' },
-}
-
-const STATUS_CONFIG = {
-  'compile-fail': { label: '编译失败', color: 'bg-red-500/15 text-red-400 border-red-500/30' },
-  'compile-errors': { label: '编译错误', color: 'bg-orange-500/15 text-orange-400 border-orange-500/30' },
-  'incomplete': { label: '不完整', color: 'bg-amber-500/15 text-amber-400 border-amber-500/30' },
-  'no-entry': { label: '无入口', color: 'bg-red-600/15 text-red-500 border-red-600/30' },
-}
-
-const CATEGORY_LABELS: Record<string, string> = {
-  compile: '编译', economy: '经济', security: '安全', logic: '逻辑', missing: '缺失', data: '数据', integration: '集成', feature: '功能', auth: '认证', schema: 'Schema', api: 'API', architecture: '架构',
-}
-
-const MODULE_STATUS_CONFIG = {
-  missing: { label: '未实现', color: 'text-red-400', bg: 'bg-red-500/10' },
-  partial: { label: '部分', color: 'text-amber-400', bg: 'bg-amber-500/10' },
-  stub: { label: '空桩', color: 'text-orange-400', bg: 'bg-orange-500/10' },
-}
-
-// ══════════════════════════════════════════════════════════════
-// SVG DEPENDENCY GRAPH DATA
-// ══════════════════════════════════════════════════════════════
-
-interface GraphNode {
-  id: string
-  label: string
-  x: number
-  y: number
-  healthScore: number
-  color: string
-}
-
-interface GraphEdge {
-  from: string
-  to: string
-  label: string
-  status: 'working' | 'broken' | 'missing'
-}
-
-const GRAPH_NODES: GraphNode[] = [
-  { id: 'user', label: 'user-service\n:9001', x: 400, y: 60, healthScore: 35, color: '#ef4444' },
-  { id: 'card', label: 'card-service\n:9003', x: 180, y: 190, healthScore: 25, color: '#ef4444' },
-  { id: 'battle', label: 'battle-service\n:9002', x: 620, y: 190, healthScore: 20, color: '#ef4444' },
-  { id: 'map', label: 'map-service\n:9004', x: 100, y: 340, healthScore: 55, color: '#f59e0b' },
-  { id: 'guild', label: 'guild-service\n:9005', x: 320, y: 340, healthScore: 40, color: '#ef4444' },
-  { id: 'payment', label: 'payment-service\n:9006', x: 540, y: 340, healthScore: 45, color: '#ef4444' },
-  { id: 'quest', label: 'quest-service\n:9007', x: 180, y: 470, healthScore: 10, color: '#dc2626' },
-  { id: 'admin', label: 'admin-service\n:9100', x: 520, y: 470, healthScore: 50, color: '#f59e0b' },
-]
-
-const GRAPH_EDGES: GraphEdge[] = [
-  { from: 'card', to: 'user', label: '扣钻石(抽卡)', status: 'missing' },
-  { from: 'battle', to: 'user', label: '加金币/经验', status: 'missing' },
-  { from: 'battle', to: 'card', label: '获取卡组', status: 'broken' },
-  { from: 'payment', to: 'user', label: '加钻石/金币', status: 'missing' },
-  { from: 'map', to: 'user', label: '扣/加粮草', status: 'missing' },
-  { from: 'guild', to: 'user', label: '更新战力', status: 'missing' },
-  { from: 'guild', to: 'map', label: '城市占领', status: 'missing' },
-  { from: 'quest', to: 'user', label: '加经验', status: 'missing' },
-  { from: 'admin', to: 'user', label: '代理', status: 'broken' },
-  { from: 'admin', to: 'card', label: '卡池管理', status: 'missing' },
-  { from: 'admin', to: 'map', label: '城市管理', status: 'missing' },
-  { from: 'admin', to: 'guild', label: '联盟管理', status: 'missing' },
-  { from: 'admin', to: 'payment', label: '订单管理', status: 'missing' },
-]
-
-const EDGE_COLORS = {
-  working: '#22c55e',
-  broken: '#ef4444',
-  missing: '#6b7280',
-}
-
-// ══════════════════════════════════════════════════════════════
-// ANIMATION VARIANTS
-// ══════════════════════════════════════════════════════════════
-
-const fadeIn = {
-  initial: { opacity: 0, y: 12 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -12 },
-}
-
-const stagger = {
-  animate: { transition: { staggerChildren: 0.04 } },
-}
-
-const scaleIn = {
-  initial: { opacity: 0, scale: 0.95 },
-  animate: { opacity: 1, scale: 1 },
-}
-
-// ══════════════════════════════════════════════════════════════
-// SUB-COMPONENTS
-// ══════════════════════════════════════════════════════════════
-
-function HealthRing({ score, size = 64 }: { score: number; size?: number }) {
-  const radius = (size - 6) / 2
-  const circumference = 2 * Math.PI * radius
-  const offset = circumference - (score / 100) * circumference
-  const color = score >= 60 ? '#22c55e' : score >= 40 ? '#f59e0b' : '#ef4444'
-
+function HexCell({ x, y, size = 28, fill, stroke, strokeW = 1.5, label, isCapital, terrain, className }: {
+  x: number; y: number; size?: number; fill: string; stroke?: string;
+  strokeW?: number; label?: string; isCapital?: boolean; terrain?: 'mountain' | 'river' | 'city' | 'normal'; className?: string;
+}) {
+  const w = size * Math.sqrt(3);
+  const h = size * 2;
   return (
-    <svg width={size} height={size} className="transform -rotate-90">
-      <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={3} />
-      <circle
-        cx={size / 2} cy={size / 2} r={radius} fill="none"
-        stroke={color} strokeWidth={3}
-        strokeDasharray={circumference} strokeDashoffset={offset}
-        strokeLinecap="round"
-        className="transition-all duration-1000 ease-out"
+    <g className={cn('transition-transform hover:scale-110', className)}>
+      <polygon
+        points={`${x},${y - size} ${x + w / 2},${y - size / 2} ${x + w / 2},${y + size / 2} ${x},${y + size} ${x - w / 2},${y + size / 2} ${x - w / 2},${y - size / 2}`}
+        fill={fill} stroke={stroke || '#2A2D3A'} strokeWidth={strokeW}
       />
-    </svg>
-  )
+      {isCapital && (
+        <polygon
+          points={`${x},${y - size - 3} ${x + w / 2 + 3},${y - size / 2} ${x + w / 2 + 3},${y + size / 2} ${x},${y + size + 3} ${x - w / 2 - 3},${y + size / 2} ${x - w / 2 - 3},${y - size / 2}`}
+          fill="none" stroke={COLORS.BronzeGold} strokeWidth={2.5}
+          className="animate-pulse"
+        />
+      )}
+      {terrain === 'mountain' && (
+        <text x={x} y={y + 4} textAnchor="middle" fill="#8B7355" fontSize="10">⛰</text>
+      )}
+      {terrain === 'river' && (
+        <text x={x} y={y + 4} textAnchor="middle" fill="#5DADE2" fontSize="10">〰</text>
+      )}
+      {terrain === 'city' && !isCapital && (
+        <text x={x} y={y + 4} textAnchor="middle" fill="#D5D8DC" fontSize="9">城</text>
+      )}
+      {label && (
+        <text x={x} y={y + (isCapital ? size + 14 : 3)} textAnchor="middle" fill="#9CA3AF" fontSize="7">{label}</text>
+      )}
+    </g>
+  );
 }
 
-function ScoreDisplay({ score }: { score: number }) {
+/* ═══════════════════════════════════════════
+   Animated Preview Components
+   ═══════════════════════════════════════════ */
+
+function InkFadeInPreview() {
   return (
-    <div className="relative">
-      <HealthRing score={score} size={64} />
-      <div className="absolute inset-0 flex items-center justify-center">
-        <span className="text-sm font-bold text-white">{score}</span>
-      </div>
+    <div className="relative w-full h-16 rounded-lg overflow-hidden bg-[#0d0e14]">
+      <motion.div
+        className="absolute inset-0 flex items-center justify-center text-sm text-[#F5F0E8] font-medium"
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: [0, 0, 1, 1, 0], scale: [0.9, 0.9, 1, 1, 0.9] }}
+        transition={{ duration: 3, repeat: Infinity, times: [0, 0.1, 0.3, 0.7, 1] }}
+      >
+        水墨淡入
+      </motion.div>
     </div>
-  )
+  );
 }
 
-// ── Section 1: System Overview ──
-
-function SystemOverview() {
-  const avgScore = Math.round(SERVICES.reduce((a, s) => a + s.healthScore, 0) / SERVICES.length)
-  const compileCount = SERVICES.filter(s => s.status === 'compile-fail').length
-
+function StampPressPreview() {
   return (
-    <div className="space-y-6">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {[
-          { label: '平均健康分', value: `${avgScore}/100`, icon: Activity, color: avgScore < 40 ? 'text-red-400' : 'text-amber-400', bg: 'bg-slate-800/50' },
-          { label: '编译失败', value: `${compileCount}/8`, icon: XCircle, color: 'text-red-400', bg: 'bg-red-500/5' },
-          { label: '关键问题', value: `${CRITICAL_ISSUES.filter(i => i.severity === 'critical').length}`, icon: AlertOctagon, color: 'text-red-400', bg: 'bg-red-500/5' },
-          { label: '缺失模块', value: `${MISSING_MODULES.length}`, icon: Package, color: 'text-amber-400', bg: 'bg-amber-500/5' },
-        ].map((stat, i) => (
-          <motion.div key={i} {...fadeIn} transition={{ delay: i * 0.05 }}>
-            <Card className="bg-slate-900/60 border-slate-800/60">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-slate-500">{stat.label}</span>
-                  <stat.icon className={cn('w-4 h-4', stat.color)} />
-                </div>
-                <span className={cn('text-xl font-bold', stat.color)}>{stat.value}</span>
-              </CardContent>
-            </Card>
-          </motion.div>
-        ))}
-      </div>
-
-      {/* Service Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        {SERVICES.map((svc, i) => {
-          const Icon = svc.icon
-          return (
-            <motion.div key={svc.name} {...fadeIn} transition={{ delay: i * 0.05 }}>
-              <Card className="bg-slate-900/60 border-slate-800/60 hover:border-slate-700/80 transition-all duration-300 group">
-                <CardHeader className="p-4 pb-2">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <div className={cn('w-9 h-9 rounded-lg bg-gradient-to-br flex items-center justify-center', svc.gradientFrom, svc.gradientTo)}>
-                        <Icon className={cn('w-4 h-4', svc.color)} />
-                      </div>
-                      <div>
-                        <CardTitle className="text-sm font-semibold text-slate-200">{svc.name}</CardTitle>
-                        <CardDescription className="text-[11px] text-slate-500">:{svc.port}</CardDescription>
-                      </div>
-                    </div>
-                    <ScoreDisplay score={svc.healthScore} />
-                  </div>
-                </CardHeader>
-                <CardContent className="p-4 pt-0 space-y-3">
-                  <div>
-                    <Badge variant="outline" className={cn('text-[10px]', STATUS_CONFIG[svc.status].color)}>
-                      {STATUS_CONFIG[svc.status].label}
-                    </Badge>
-                  </div>
-                  <Progress
-                    value={svc.healthScore}
-                    className={cn('h-1.5', svc.healthScore >= 60 ? '[&>div]:bg-emerald-500' : svc.healthScore >= 40 ? '[&>div]:bg-amber-500' : '[&>div]:bg-red-500')}
-                  />
-                  <div className="text-[11px] text-slate-500 group-hover:text-slate-400 transition-colors">
-                    {svc.issues.length} 个问题
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          )
-        })}
-      </div>
+    <div className="relative w-full h-16 rounded-lg overflow-hidden bg-[#0d0e14] flex items-center justify-center">
+      <motion.div
+        className="w-10 h-10 rounded-sm border-2 border-[#C23B22] flex items-center justify-center text-[#C23B22] text-xs font-bold bg-[#C23B22]/10"
+        animate={{ scale: [1.3, 0.95, 1.05, 1], rotate: [-5, 2, -1, 0] }}
+        transition={{ duration: 1.5, repeat: Infinity, repeatDelay: 1 }}
+      >
+        印
+      </motion.div>
     </div>
-  )
+  );
 }
 
-// ── Section 2: Critical Issues ──
+function GoldShimmerPreview() {
+  return (
+    <div className="relative w-full h-16 rounded-lg overflow-hidden bg-[#0d0e14] flex items-center justify-center">
+      <motion.div
+        className="w-10 h-10 rounded-lg border-2 flex items-center justify-center text-xs font-bold"
+        style={{ borderColor: RARITY_COLORS.SSR.border, color: RARITY_COLORS.SSR.primary }}
+        animate={{
+          boxShadow: [
+            '0 0 2px #FFD70020',
+            '0 0 20px #FFD70060',
+            '0 0 40px #FFD70080',
+            '0 0 12px #FFD70040',
+            '0 0 2px #FFD70020',
+          ],
+          backgroundColor: ['transparent', '#FFD70015', '#FFD70025', '#FFD70010', 'transparent'],
+        }}
+        transition={{ duration: 2, repeat: Infinity }}
+      >
+        SSR
+      </motion.div>
+      <motion.div
+        className="absolute inset-0 bg-gradient-to-r from-transparent via-yellow-400/20 to-transparent"
+        animate={{ x: ['-100%', '100%'] }}
+        transition={{ duration: 2, repeat: Infinity, repeatDelay: 1.5 }}
+      />
+    </div>
+  );
+}
 
-function CriticalIssues() {
-  const [filterService, setFilterService] = useState<string>('all')
-  const [filterSeverity, setFilterSeverity] = useState<string>('all')
-  const [filterCategory, setFilterCategory] = useState<string>('all')
+function PurpleMistPreview() {
+  return (
+    <div className="relative w-full h-16 rounded-lg overflow-hidden bg-[#0d0e14] flex items-center justify-center">
+      <motion.div
+        className="w-10 h-10 rounded-lg border-2 flex items-center justify-center text-xs font-bold"
+        style={{ borderColor: RARITY_COLORS.SR.border, color: RARITY_COLORS.SR.primary }}
+        animate={{
+          boxShadow: [
+            '0 0 2px #9B59B620',
+            '0 0 25px #9B59B660',
+            '0 0 15px #9B59B640',
+            '0 0 25px #9B59B660',
+          ],
+        }}
+        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+      >
+        SR
+      </motion.div>
+      <motion.div
+        className="absolute inset-0 bg-purple-500/5 rounded-lg"
+        animate={{ opacity: [0, 0.3, 0.1, 0.3, 0] }}
+        transition={{ duration: 3, repeat: Infinity }}
+      />
+    </div>
+  );
+}
 
-  const categories = [...new Set(CRITICAL_ISSUES.map(i => i.category))]
+function BorderBreathePreview() {
+  return (
+    <div className="relative w-full h-16 rounded-lg overflow-hidden bg-[#0d0e14] flex items-center justify-center">
+      <motion.div
+        className="w-24 h-8 rounded border"
+        animate={{
+          borderColor: ['#C4973B30', '#C4973B', '#C4973B', '#C4973B30'],
+          boxShadow: ['0 0 2px transparent', '0 0 8px #C4973B40', '0 0 8px #C4973B40', '0 0 2px transparent'],
+        }}
+        transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+      >
+        <div className="w-full h-full flex items-center justify-center text-xs text-[#C4973B]">呼吸边框</div>
+      </motion.div>
+    </div>
+  );
+}
 
-  const filtered = CRITICAL_ISSUES.filter(i => {
-    if (filterService !== 'all' && i.service !== filterService) return false
-    if (filterSeverity !== 'all' && i.severity !== filterSeverity) return false
-    if (filterCategory !== 'all' && i.category !== filterCategory) return false
-    return true
-  })
+function BambooSlidePreview() {
+  return (
+    <div className="relative w-full h-16 rounded-lg overflow-hidden bg-[#0d0e14]">
+      <motion.div
+        className="absolute top-0 bottom-0 w-3/4 bg-gradient-to-r from-[#D4A017]/20 to-[#D4A017]/5 flex items-center justify-center text-xs text-[#D4A017]"
+        initial={{ x: '-100%' }}
+        animate={{ x: ['-100%', '0%', '0%', '-100%'] }}
+        transition={{ duration: 2.5, repeat: Infinity, times: [0, 0.3, 0.7, 1] }}
+      >
+        竹简滑入 ▸
+      </motion.div>
+    </div>
+  );
+}
+
+function SealStampPreview() {
+  return (
+    <div className="relative w-full h-16 rounded-lg overflow-hidden bg-[#0d0e14] flex items-center justify-center">
+      <motion.div
+        className="w-10 h-10 rounded-sm flex items-center justify-center text-xs font-bold"
+        animate={{
+          scale: [0, 1.4, 1, 1, 1],
+          rotate: [0, -15, 5, -2, 0],
+          backgroundColor: ['#C23B2200', '#C23B2230', '#C23B2260', '#C23B2260', '#C23B2200'],
+          color: ['#C23B2200', '#C23B22', '#C23B22', '#C23B22', '#C23B2200'],
+        }}
+        transition={{ duration: 2, repeat: Infinity, repeatDelay: 1 }}
+      >
+        赏
+      </motion.div>
+    </div>
+  );
+}
+
+const ANIM_PREVIEWS: Record<string, React.ReactNode> = {
+  InkFadeIn: <InkFadeInPreview />,
+  StampPress: <StampPressPreview />,
+  GoldShimmer: <GoldShimmerPreview />,
+  PurpleMist: <PurpleMistPreview />,
+  BorderBreathe: <BorderBreathePreview />,
+  BambooSlide: <BambooSlidePreview />,
+  SealStamp: <SealStampPreview />,
+};
+
+/* ═══════════════════════════════════════════
+   Section Wrapper
+   ═══════════════════════════════════════════ */
+
+function Section({ id, title, subtitle, icon: Icon, children }: {
+  id: string; title: string; subtitle: string; icon: React.ElementType; children: React.ReactNode;
+}) {
+  const ref = useRef(null);
+  const isInView = useInView(ref, { once: true, margin: '-60px' });
 
   return (
-    <div className="space-y-4">
-      {/* Filters */}
-      <Card className="bg-slate-900/60 border-slate-800/60">
-        <CardContent className="p-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-slate-500 font-medium mr-1">筛选:</span>
-            <select
-              value={filterService}
-              onChange={e => setFilterService(e.target.value)}
-              className="text-xs bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-slate-300 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
-            >
-              <option value="all">全部服务</option>
-              {SERVICES.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
-            </select>
-            <select
-              value={filterSeverity}
-              onChange={e => setFilterSeverity(e.target.value)}
-              className="text-xs bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-slate-300 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
-            >
-              <option value="all">全部级别</option>
-              <option value="critical">致命</option>
-              <option value="high">严重</option>
-              <option value="medium">中等</option>
-            </select>
-            <select
-              value={filterCategory}
-              onChange={e => setFilterCategory(e.target.value)}
-              className="text-xs bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-slate-300 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
-            >
-              <option value="all">全部类型</option>
-              {categories.map(c => <option key={c} value={c}>{CATEGORY_LABELS[c] || c}</option>)}
-            </select>
-            <Badge variant="outline" className="text-[10px] text-slate-400 border-slate-700 ml-auto">
-              {filtered.length} / {CRITICAL_ISSUES.length} 条
-            </Badge>
+    <motion.section
+      id={id}
+      ref={ref}
+      className="scroll-mt-24"
+      initial="hidden"
+      animate={isInView ? 'visible' : 'hidden'}
+      variants={staggerContainer}
+    >
+      <motion.div variants={fadeInUp} custom={0} className="flex items-center gap-3 mb-2">
+        <div className="w-10 h-10 rounded-lg bg-[#C4973B]/10 border border-[#C4973B]/20 flex items-center justify-center">
+          <Icon className="w-5 h-5 text-[#C4973B]" />
+        </div>
+        <div>
+          <h2 className="text-2xl font-bold text-[#F5F0E8] tracking-wide">{title}</h2>
+          <p className="text-sm text-[#6B7280]">{subtitle}</p>
+        </div>
+      </motion.div>
+      <motion.div variants={fadeInUp} custom={1}>
+        <Separator className="bg-[#C4973B]/20 mb-8" />
+      </motion.div>
+      <div>{children}</div>
+    </motion.section>
+  );
+}
+
+/* ═══════════════════════════════════════════
+   Main Page Component
+   ═══════════════════════════════════════════ */
+
+export default function UnityUIDiagram() {
+  return (
+    <div className="min-h-screen bg-[#0a0b10] text-[#E5E7EB]">
+      {/* ─── Header ─── */}
+      <header className="sticky top-0 z-50 bg-[#0a0b10]/90 backdrop-blur-xl border-b border-[#1F2937]/60">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#C23B22] to-[#C4973B] flex items-center justify-center shadow-lg shadow-[#C23B22]/20">
+              <Swords className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-lg font-bold text-[#F5F0E8] tracking-wider">战国·楚汉争霸</h1>
+              <p className="text-[10px] text-[#6B7280] tracking-widest">UNITY CLIENT UI ARCHITECTURE</p>
+            </div>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Issues List */}
-      <ScrollArea className="max-h-[600px]">
-        <div className="space-y-1.5 pr-3">
-          {filtered.map((issue, i) => {
-            const sev = SEVERITY_CONFIG[issue.severity]
-            const svc = SERVICES.find(s => s.name === issue.service)
-            return (
-              <motion.div
-                key={`${issue.service}-${i}`}
-                {...fadeIn}
-                transition={{ delay: Math.min(i * 0.02, 0.5) }}
+          <Badge variant="outline" className="border-[#C4973B]/40 text-[#C4973B] text-xs hidden sm:inline-flex">
+            v2.0 · Refactored
+          </Badge>
+        </div>
+        {/* Nav */}
+        <nav className="max-w-7xl mx-auto px-4 sm:px-6 pb-3 overflow-x-auto">
+          <div className="flex gap-1 min-w-max">
+            {[
+              { label: '设计理念', id: 'philosophy' },
+              { label: '色彩体系', id: 'colors' },
+              { label: 'UI结构图', id: 'structure' },
+              { label: '卡牌布局', id: 'card' },
+              { label: '世界地图', id: 'map' },
+              { label: '动效目录', id: 'animations' },
+              { label: '文件架构', id: 'files' },
+            ].map((item) => (
+              <a
+                key={item.id}
+                href={`#${item.id}`}
+                className="px-3 py-1.5 text-xs text-[#9CA3AF] hover:text-[#F5F0E8] hover:bg-[#1F2937] rounded-md transition-colors whitespace-nowrap"
               >
-                <Card className="bg-slate-900/40 border-slate-800/40 hover:border-slate-700/60 transition-all duration-200">
-                  <CardContent className="p-3 flex items-start gap-3">
-                    <div className={cn('w-2 h-2 rounded-full mt-1.5 flex-shrink-0', sev.dot)} />
-                    <div className="flex-1 min-w-0 space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Badge variant="outline" className={cn('text-[9px]', sev.color)}>{sev.label}</Badge>
-                        <Badge variant="outline" className="text-[9px] bg-slate-800/50 text-slate-400 border-slate-700">
-                          {CATEGORY_LABELS[issue.category] || issue.category}
-                        </Badge>
-                        <span className="text-[10px] text-slate-500 font-mono">{issue.service}</span>
+                {item.label}
+              </a>
+            ))}
+          </div>
+        </nav>
+      </header>
+
+      {/* ─── Main Content ─── */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-10 space-y-20">
+        {/* ═══ Section 1: Design Philosophy ═══ */}
+        <Section id="philosophy" title="设计理念" subtitle="四大核心设计支柱" icon={Sparkles}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {[
+              {
+                title: '水墨风',
+                subtitle: 'Ink Wash Style',
+                icon: Droplets,
+                desc: '以中国传统水墨画为灵感，宣纸质感底色、墨色渐变效果，打造沉浸式古风视觉体验。',
+                colors: ['#F5F0E8', '#1A1A2E', '#4A5568', '#2D3748'],
+                accent: '#4A5568',
+              },
+              {
+                title: '金属质感',
+                subtitle: 'Metallic Texture',
+                icon: Shield,
+                desc: '青铜与鎏金质感贯穿全局，边框、按钮、装饰元素均采用金属氧化色系。',
+                colors: ['#C4973B', '#D4A017', '#B8860B', '#DAA520'],
+                accent: '#C4973B',
+              },
+              {
+                title: '战国楚汉',
+                subtitle: 'Warring States Theme',
+                icon: Crown,
+                desc: '深度还原战国至楚汉历史美学，朱砂红、漆黑、竹简黄等传统色彩系统。',
+                colors: ['#C23B22', '#0A0B10', '#D4A017', '#2E8B57'],
+                accent: '#C23B22',
+              },
+              {
+                title: '动画过渡',
+                subtitle: 'Animation Transitions',
+                icon: Zap,
+                desc: '7种定制动画效果：水墨淡入、印章盖压、金光闪烁等，每个交互都充满仪式感。',
+                colors: ['#FFD700', '#9B59B6', '#C23B22', '#D4A017'],
+                accent: '#FFD700',
+              },
+            ].map((pillar, i) => (
+              <motion.div key={pillar.title} variants={fadeInUp} custom={i}>
+                <Card className="bg-[#111318] border-[#1F2937]/60 hover:border-[#2A2D3A] transition-colors group h-full">
+                  <CardContent className="p-5 space-y-4">
+                    <div className="flex items-start justify-between">
+                      <div
+                        className="w-10 h-10 rounded-lg flex items-center justify-center transition-transform group-hover:scale-110"
+                        style={{ backgroundColor: `${pillar.accent}15`, border: `1px solid ${pillar.accent}30` }}
+                      >
+                        <pillar.icon className="w-5 h-5" style={{ color: pillar.accent }} />
                       </div>
-                      <p className="text-xs text-slate-300 leading-relaxed">{issue.description}</p>
+                      <span className="text-[10px] text-[#4A5568] font-mono tracking-wider">{pillar.subtitle}</span>
                     </div>
-                    {svc && (
-                      <div className="flex-shrink-0 text-right">
-                        <span className={cn('text-xs font-bold', svc.healthScore < 40 ? 'text-red-400' : 'text-amber-400')}>
-                          {svc.healthScore}
-                        </span>
-                      </div>
-                    )}
+                    <div>
+                      <h3 className="text-base font-bold text-[#F5F0E8] mb-1">{pillar.title}</h3>
+                      <p className="text-xs text-[#6B7280] leading-relaxed">{pillar.desc}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      {pillar.colors.map((c) => (
+                        <div key={c} className="w-6 h-6 rounded-full border border-white/10 shadow-inner" style={{ backgroundColor: c }} />
+                      ))}
+                    </div>
                   </CardContent>
                 </Card>
               </motion.div>
-            )
-          })}
-        </div>
-      </ScrollArea>
-    </div>
-  )
-}
-
-// ── Section 3: Dependency Graph ──
-
-function DependencyGraph() {
-  const [selectedNode, setSelectedNode] = useState<string | null>(null)
-  const svgRef = useRef<SVGSVGElement>(null)
-
-  const getNode = (id: string) => GRAPH_NODES.find(n => n.id === id)!
-  const getConnectedEdges = (nodeId: string) =>
-    GRAPH_EDGES.filter(e => e.from === nodeId || e.to === nodeId)
-
-  const selectedEdges = selectedNode ? getConnectedEdges(selectedNode) : []
-
-  return (
-    <div className="space-y-4">
-      {/* Legend */}
-      <div className="flex flex-wrap items-center gap-4 px-2">
-        {[
-          { color: '#22c55e', label: '正常' },
-          { color: '#ef4444', label: '异常' },
-          { color: '#6b7280', label: '缺失' },
-        ].map(l => (
-          <div key={l.label} className="flex items-center gap-1.5">
-            <div className="w-4 h-0.5 rounded" style={{ backgroundColor: l.color }} />
-            <span className="text-[10px] text-slate-500">{l.label}</span>
+            ))}
           </div>
-        ))}
-        <span className="text-[10px] text-slate-600 ml-auto">点击节点查看详情</span>
-      </div>
+        </Section>
 
-      <Card className="bg-slate-900/60 border-slate-800/60">
-        <CardContent className="p-2 overflow-x-auto">
-          <svg ref={svgRef} viewBox="0 0 720 530" className="w-full min-w-[600px] h-auto">
-            <defs>
-              <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-                <polygon points="0 0, 8 3, 0 6" fill="currentColor" className="text-slate-600" />
-              </marker>
-              <marker id="arrowhead-highlight" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-                <polygon points="0 0, 8 3, 0 6" fill="currentColor" className="text-amber-400" />
-              </marker>
-            </defs>
-
-            {/* Edges */}
-            {GRAPH_EDGES.map((edge, i) => {
-              const fromNode = getNode(edge.from)
-              const toNode = getNode(edge.to)
-              const isHighlighted = selectedNode && (edge.from === selectedNode || edge.to === selectedNode)
-              const edgeColor = EDGE_COLORS[edge.status]
-
-              const midX = (fromNode.x + toNode.x) / 2
-              const midY = (fromNode.y + toNode.y) / 2
-              const dx = toNode.x - fromNode.x
-              const dy = toNode.y - fromNode.y
-              const perpX = -dy * 0.12
-              const perpY = dx * 0.12
-
-              const cpX = midX + perpX
-              const cpY = midY + perpY
-
-              return (
-                <g key={i}>
-                  <path
-                    d={`M ${fromNode.x} ${fromNode.y} Q ${cpX} ${cpY} ${toNode.x} ${toNode.y}`}
-                    fill="none"
-                    stroke={isHighlighted ? edgeColor : 'rgba(107,114,128,0.3)'}
-                    strokeWidth={isHighlighted ? 2.5 : 1}
-                    strokeDasharray={edge.status === 'missing' ? '6 3' : 'none'}
-                    markerEnd={isHighlighted ? 'url(#arrowhead-highlight)' : 'url(#arrowhead)'}
-                    className="transition-all duration-300"
-                    opacity={selectedNode && !isHighlighted ? 0.1 : 1}
-                  />
-                  {isHighlighted && (
-                    <text
-                      x={cpX} y={cpY - 8}
-                      textAnchor="middle"
-                      className="fill-amber-400 text-[9px] font-medium"
-                    >
-                      {edge.label}
-                    </text>
-                  )}
-                </g>
-              )
-            })}
-
-            {/* Nodes */}
-            {GRAPH_NODES.map(node => {
-              const isSelected = selectedNode === node.id
-              const isDimmed = selectedNode && selectedNode !== node.id
-
-              return (
-                <g
-                  key={node.id}
-                  className={cn('cursor-pointer transition-all duration-300', isDimmed && 'opacity-30')}
-                  onClick={() => setSelectedNode(prev => prev === node.id ? null : node.id)}
-                >
-                  {/* Glow */}
-                  {isSelected && (
-                    <circle cx={node.x} cy={node.y} r={48} fill="none" stroke="#f59e0b" strokeWidth={1} opacity={0.3}>
-                      <animate attributeName="r" from="42" to="52" dur="2s" repeatCount="indefinite" />
-                      <animate attributeName="opacity" from="0.4" to="0.1" dur="2s" repeatCount="indefinite" />
-                    </circle>
-                  )}
-                  {/* Node circle */}
-                  <circle
-                    cx={node.x} cy={node.y}
-                    r={isSelected ? 40 : 36}
-                    fill="#0f1117"
-                    stroke={isSelected ? '#f59e0b' : node.color}
-                    strokeWidth={isSelected ? 2.5 : 1.5}
-                    className="transition-all duration-300"
-                  />
-                  {/* Score ring */}
-                  <circle
-                    cx={node.x} cy={node.y}
-                    r={36}
-                    fill="none"
-                    stroke={node.color}
-                    strokeWidth={2.5}
-                    strokeDasharray={`${node.healthScore * 2.26} 999`}
-                    strokeDashoffset="0"
-                    transform={`rotate(-90 ${node.x} ${node.y})`}
-                    strokeLinecap="round"
-                    opacity={0.8}
-                  />
-                  {/* Label */}
-                  {node.label.split('\n').map((line, li) => (
-                    <text
-                      key={li}
-                      x={node.x} y={node.y + (li === 0 ? -5 : 9)}
-                      textAnchor="middle"
-                      className={cn(
-                        'text-[10px] font-medium pointer-events-none',
-                        li === 0 ? 'fill-slate-300' : 'fill-slate-500'
-                      )}
-                    >
-                      {line}
-                    </text>
-                  ))}
-                </g>
-              )
-            })}
-          </svg>
-        </CardContent>
-      </Card>
-
-      {/* Selected Node Details */}
-      <AnimatePresence>
-        {selectedNode && (
-          <motion.div {...fadeIn} transition={{ duration: 0.2 }}>
-            <Card className="bg-slate-900/60 border-amber-500/30">
-              <CardHeader className="p-4 pb-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <CircleDot className="w-4 h-4 text-amber-400" />
-                    <CardTitle className="text-sm text-slate-200">{getNode(selectedNode).label.replace('\n', ' ')}</CardTitle>
-                    <Badge variant="outline" className="text-[10px] bg-slate-800/50 text-slate-400 border-slate-700">
-                      {getNode(selectedNode).healthScore}/100
-                    </Badge>
-                  </div>
-                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setSelectedNode(null)}>
-                    <X className="w-3 h-3 text-slate-500" />
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="p-4 pt-0 space-y-2">
-                <span className="text-xs text-slate-500 font-medium">依赖关系:</span>
-                <div className="space-y-1.5">
-                  {selectedEdges.map((edge, i) => {
-                    const isFrom = edge.from === selectedNode
-                    const otherNode = getNode(isFrom ? edge.to : edge.from)
-                    const edgeColor = EDGE_COLORS[edge.status]
-                    return (
-                      <div key={i} className="flex items-center gap-2 text-xs">
-                        <span className="text-slate-400">{isFrom ? '→ 调用' : '← 被调用'}</span>
-                        <span className="text-slate-300 font-medium">{otherNode.label.split('\n')[0]}</span>
-                        <span className="text-slate-500">({edge.label})</span>
-                        <Badge
-                          variant="outline"
-                          className={cn('text-[9px] ml-auto',
-                            edge.status === 'missing' ? 'bg-slate-800/50 text-slate-500 border-slate-700'
-                            : edge.status === 'broken' ? 'bg-red-500/10 text-red-400 border-red-500/30'
-                            : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                          )}
+        {/* ═══ Section 2: Color System ═══ */}
+        <Section id="colors" title="色彩体系" subtitle="UIStyleConfig 全局颜色配置" icon={Palette}>
+          <Tabs defaultValue="base" className="w-full">
+            <TabsList className="bg-[#111318] border border-[#1F2937]/60">
+              <TabsTrigger value="base" className="text-xs data-[state=active]:bg-[#C4973B]/15 data-[state=active]:text-[#C4973B]">基础色板</TabsTrigger>
+              <TabsTrigger value="rarity" className="text-xs data-[state=active]:bg-[#C4973B]/15 data-[state=active]:text-[#C4973B]">品质色阶</TabsTrigger>
+              <TabsTrigger value="faction" className="text-xs data-[state=active]:bg-[#C4973B]/15 data-[state=active]:text-[#C4973B]">势力色彩</TabsTrigger>
+            </TabsList>
+            <TabsContent value="base">
+              <Card className="bg-[#111318] border-[#1F2937]/60 mt-4">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm text-[#9CA3AF]">Base Color Palette</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-4">
+                    {Object.entries(COLORS).map(([name, hex]) => (
+                      <div key={name} className="group cursor-pointer">
+                        <div
+                          className="w-full aspect-square rounded-xl border border-white/5 shadow-lg transition-transform group-hover:scale-105 mb-2 flex items-end p-2"
+                          style={{ backgroundColor: hex }}
                         >
-                          {edge.status === 'missing' ? '缺失' : edge.status === 'broken' ? '异常' : '正常'}
-                        </Badge>
-                      </div>
-                    )
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  )
-}
-
-// ── Section 4: Logic Flow Breaks ──
-
-function FlowBreaks() {
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      {LOGIC_BREAKS.map((brk, i) => {
-        const Icon = brk.icon
-        return (
-          <motion.div key={brk.id} {...fadeIn} transition={{ delay: i * 0.05 }}>
-            <Card className={cn('bg-gradient-to-br border border-slate-800/60 overflow-hidden', brk.gradient)}>
-              <CardHeader className="p-4 pb-2">
-                <div className="flex items-center gap-2.5">
-                  <div className={cn('w-8 h-8 rounded-lg bg-slate-800/80 flex items-center justify-center', brk.color)}>
-                    <Icon className="w-4 h-4" />
-                  </div>
-                  <div className="flex-1">
-                    <CardTitle className="text-sm font-semibold text-slate-200">{brk.title}</CardTitle>
-                    <CardDescription className="text-[11px] text-red-400/80">{brk.impact}</CardDescription>
-                  </div>
-                  <Badge variant="outline" className="text-[9px] bg-red-500/10 text-red-400 border-red-500/30">
-                    断链 #{brk.id}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="p-4 pt-2">
-                <div className="space-y-0">
-                  {brk.flowSteps.map((step, si) => (
-                    <div key={si} className="flex items-start gap-2">
-                      {/* Vertical connector */}
-                      <div className="flex flex-col items-center">
-                        <div className={cn(
-                          'w-6 h-6 rounded-full flex items-center justify-center border text-[10px] font-bold flex-shrink-0',
-                          step.status === 'ok'
-                            ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400'
-                            : step.status === 'broken'
-                              ? 'bg-red-500/10 border-red-500/40 text-red-400'
-                              : 'bg-slate-700/50 border-slate-600/40 text-slate-500'
-                        )}>
-                          {step.status === 'ok' ? <CheckCircle2 className="w-3.5 h-3.5" />
-                            : step.status === 'broken' ? <XCircle className="w-3.5 h-3.5" />
-                              : <span className="text-[8px]">∅</span>}
+                          <span className="text-[9px] font-mono opacity-60" style={{ color: hex === '#F5F0E8' || hex === '#FAF8F5' || hex === '#D4A017' || hex === '#D97706' ? '#000' : '#fff' }}>
+                            {hex}
+                          </span>
                         </div>
-                        {si < brk.flowSteps.length - 1 && (
-                          <div className={cn(
-                            'w-0.5 h-4',
-                            step.status === 'broken' ? 'bg-red-500/30' : 'bg-slate-700/50'
-                          )} />
-                        )}
+                        <p className="text-xs font-medium text-[#D1D5DB] truncate">{name}</p>
+                        <p className="text-[10px] text-[#6B7280] truncate">{getChineseColorName(name)}</p>
                       </div>
-                      <div className="pt-0.5 pb-3">
-                        <span className={cn(
-                          'text-xs font-medium',
-                          step.status === 'ok' ? 'text-slate-300'
-                            : step.status === 'broken' ? 'text-red-300'
-                              : 'text-slate-500'
-                        )}>
-                          {step.label}
-                        </span>
-                        <p className="text-[10px] text-slate-600 mt-0.5">{step.detail}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        )
-      })}
-    </div>
-  )
-}
-
-// ── Section 5: Missing Modules ──
-
-function MissingModules() {
-  const [expandedService, setExpandedService] = useState<string | null>(null)
-  const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set())
-
-  const toggleCheck = (key: string) => {
-    setCheckedItems(prev => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
-  }
-
-  const groupedByService = MISSING_MODULES.reduce<Record<string, MissingModule[]>>((acc, mod) => {
-    if (!acc[mod.service]) acc[mod.service] = []
-    acc[mod.service].push(mod)
-    return acc
-  }, {})
-
-  const totalModules = MISSING_MODULES.length
-  const checkedCount = checkedItems.size
-
-  return (
-    <div className="space-y-4">
-      {/* Progress summary */}
-      <Card className="bg-slate-900/60 border-slate-800/60">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-slate-400">修复进度</span>
-            <span className="text-xs text-slate-500">{checkedCount} / {totalModules} 已处理</span>
-          </div>
-          <Progress value={(checkedCount / totalModules) * 100} className="h-2 [&>div]:bg-emerald-500" />
-        </CardContent>
-      </Card>
-
-      <ScrollArea className="max-h-[600px]">
-        <div className="space-y-2 pr-3">
-          {Object.entries(groupedByService).map(([service, modules]) => {
-            const isExpanded = expandedService === service
-            const svc = SERVICES.find(s => s.name === service)!
-            const Icon = svc.icon
-            const checkedInGroup = modules.filter(m => checkedItems.has(`${service}-${m.module}`)).length
-
-            return (
-              <motion.div key={service} {...scaleIn}>
-                <Card className="bg-slate-900/40 border-slate-800/40">
-                  <button
-                    onClick={() => setExpandedService(prev => prev === service ? null : service)}
-                    className="w-full p-3 flex items-center gap-3 text-left"
-                  >
-                    <Icon className={cn('w-4 h-4 flex-shrink-0', svc.color)} />
-                    <span className="text-sm font-medium text-slate-300 flex-1">{service}</span>
-                    <Badge variant="outline" className="text-[9px] text-slate-400 border-slate-700">
-                      {checkedInGroup}/{modules.length}
-                    </Badge>
-                    <ChevronDown className={cn('w-4 h-4 text-slate-500 transition-transform', isExpanded && 'rotate-180')} />
-                  </button>
-                  <AnimatePresence>
-                    {isExpanded && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="overflow-hidden"
-                      >
-                        <Separator className="bg-slate-800/60" />
-                        <div className="p-3 space-y-1">
-                          {modules.map(mod => {
-                            const key = `${service}-${mod.module}`
-                            const isChecked = checkedItems.has(key)
-                            const statusConf = MODULE_STATUS_CONFIG[mod.status]
-                            return (
-                              <div key={mod.module} className="flex items-start gap-2.5 py-1.5 px-1 rounded-lg hover:bg-slate-800/30 transition-colors">
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={() => toggleCheck(key)}
-                                  className="mt-0.5 w-3.5 h-3.5 rounded border-slate-600 bg-slate-800 text-emerald-500 focus:ring-emerald-500/30 focus:ring-offset-0 cursor-pointer"
-                                />
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className={cn('text-xs font-medium', isChecked ? 'text-slate-500 line-through' : 'text-slate-300')}>
-                                      {mod.module}
-                                    </span>
-                                    <Badge variant="outline" className={cn('text-[9px]', statusConf.bg, statusConf.color, 'border-transparent')}>
-                                      {statusConf.label}
-                                    </Badge>
-                                  </div>
-                                  <p className="text-[10px] text-slate-600 mt-0.5">{mod.impact}</p>
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </Card>
-              </motion.div>
-            )
-          })}
-        </div>
-      </ScrollArea>
-    </div>
-  )
-}
-
-// ── Section 6: Roadmap ──
-
-function FixRoadmap() {
-  const effortConfig = { S: { label: '小', color: 'text-emerald-400' }, M: { label: '中', color: 'text-amber-400' }, L: { label: '大', color: 'text-red-400' } }
-
-  const impactConfig = {
-    critical: { label: '致命', color: 'bg-red-500/15 text-red-400 border-red-500/30' },
-    high: { label: '严重', color: 'bg-orange-500/15 text-orange-400 border-orange-500/30' },
-    medium: { label: '中等', color: 'bg-amber-500/15 text-amber-400 border-amber-500/30' },
-  }
-
-  return (
-    <div className="space-y-4">
-      {/* Priority Matrix Header */}
-      <Card className="bg-slate-900/60 border-slate-800/60">
-        <CardContent className="p-4">
-          <div className="flex flex-wrap items-center gap-6 text-xs">
-            <div className="flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-slate-500" />
-              <span className="text-slate-400">工作量:</span>
-              <span className="text-emerald-400">S=小</span>
-              <span className="text-amber-400">M=中</span>
-              <span className="text-red-400">L=大</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Zap className="w-3.5 h-3.5 text-slate-500" />
-              <span className="text-slate-400">影响:</span>
-              <Badge variant="outline" className="text-[9px] bg-red-500/15 text-red-400 border-red-500/30">致命</Badge>
-              <Badge variant="outline" className="text-[9px] bg-orange-500/15 text-orange-400 border-orange-500/30">严重</Badge>
-              <Badge variant="outline" className="text-[9px] bg-amber-500/15 text-amber-400 border-amber-500/30">中等</Badge>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Roadmap Items */}
-      <div className="space-y-3">
-        {ROADMAP.map((item, i) => {
-          const eff = effortConfig[item.effort]
-          const imp = impactConfig[item.impact]
-          return (
-            <motion.div key={i} {...fadeIn} transition={{ delay: i * 0.04 }}>
-              <Card className={cn(
-                'bg-slate-900/40 border-slate-800/40 hover:border-slate-700/60 transition-all',
-                item.impact === 'critical' && 'hover:border-red-500/30'
-              )}>
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-3">
-                    {/* Priority Number */}
-                    <div className={cn(
-                      'w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0',
-                      item.priority <= 3 ? 'bg-red-500/15 text-red-400'
-                        : item.priority <= 6 ? 'bg-orange-500/15 text-orange-400'
-                          : item.priority <= 9 ? 'bg-amber-500/15 text-amber-400'
-                            : 'bg-slate-800/50 text-slate-500'
-                    )}>
-                      {item.priority}
-                    </div>
-
-                    <div className="flex-1 min-w-0 space-y-1.5">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h4 className="text-sm font-semibold text-slate-200">{item.title}</h4>
-                        <Badge variant="outline" className={cn('text-[9px]', eff.color, 'border-transparent bg-slate-800/50')}>
-                          {eff.label}
-                        </Badge>
-                        <Badge variant="outline" className={cn('text-[9px]', imp.color)}>
-                          {imp.label}
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-slate-400 leading-relaxed">{item.description}</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {item.services.map(svc => {
-                          const s = SERVICES.find(x => x.name === svc)
-                          return (
-                            <Badge key={svc} variant="outline" className="text-[9px] bg-slate-800/50 text-slate-500 border-slate-700/50">
-                              {svc}
-                              <span className={cn('ml-1 font-mono', s && s.healthScore < 40 ? 'text-red-400' : 'text-amber-400')}>
-                                {s?.healthScore || '?'}
-                              </span>
-                            </Badge>
-                          )
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Arrow indicator */}
-                    <ChevronRight className="w-4 h-4 text-slate-700 flex-shrink-0 mt-1" />
+                    ))}
                   </div>
                 </CardContent>
               </Card>
-            </motion.div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
+            </TabsContent>
+            <TabsContent value="rarity">
+              <Card className="bg-[#111318] border-[#1F2937]/60 mt-4">
+                <CardContent className="p-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                    {(['SSR', 'SR', 'R', '良', '凡'] as const).map((rarity) => {
+                      const r = RARITY_COLORS[rarity];
+                      return (
+                        <div key={rarity} className="space-y-3">
+                          {/* Mini card frame */}
+                          <motion.div
+                            className="relative w-full aspect-[3/4] rounded-xl overflow-hidden"
+                            style={{
+                              border: `2px solid ${r.border}`,
+                              boxShadow: `0 0 20px ${r.glow}, inset 0 0 20px ${r.glow}`,
+                            }}
+                            whileHover={{ scale: 1.03 }}
+                          >
+                            <div className="absolute inset-0 bg-gradient-to-b from-[#1a1a2e]/80 to-[#0a0b10]" />
+                            <div className="absolute inset-0 flex flex-col items-center justify-center">
+                              <span className="text-2xl font-black" style={{ color: r.primary }}>{rarity}</span>
+                              <div className="mt-2 flex gap-1">
+                                {rarity === 'SSR' ? <><Star className="w-3 h-3 fill-[#FFD700]" /><Star className="w-3 h-3 fill-[#FFD700]" /><Star className="w-3 h-3 fill-[#FFD700]" /><Star className="w-3 h-3 fill-[#FFD700]" /><Star className="w-3 h-3 fill-[#FFD700]" /></> :
+                                 rarity === 'SR' ? <><Star className="w-3 h-3 fill-[#9B59B6]" /><Star className="w-3 h-3 fill-[#9B59B6]" /><Star className="w-3 h-3 fill-[#9B59B6]" /><Star className="w-3 h-3 fill-[#9B59B6]" /></> :
+                                 rarity === 'R' ? <><Star className="w-3 h-3 fill-[#2E8B57]" /><Star className="w-3 h-3 fill-[#2E8B57]" /><Star className="w-3 h-3 fill-[#2E8B57]" /></> :
+                                 rarity === '良' ? <><Star className="w-3 h-3 fill-[#3498DB]" /><Star className="w-3 h-3 fill-[#3498DB]" /></> :
+                                 <Star className="w-3 h-3 fill-[#95A5A6]" />}
+                              </div>
+                            </div>
+                            {rarity === 'SSR' && (
+                              <motion.div
+                                className="absolute inset-0 bg-gradient-to-r from-transparent via-yellow-400/20 to-transparent"
+                                animate={{ x: ['-100%', '200%'] }}
+                                transition={{ duration: 2.5, repeat: Infinity, repeatDelay: 2 }}
+                              />
+                            )}
+                          </motion.div>
+                          {/* Color swatches */}
+                          <div className="grid grid-cols-4 gap-1.5">
+                            {[
+                              { label: '主色', c: r.primary },
+                              { label: '边框', c: r.border },
+                              { label: '光效', c: r.glow },
+                              { label: '粒子', c: r.particle },
+                            ].map((s) => (
+                              <div key={s.label} className="text-center">
+                                <div className="w-full aspect-square rounded-md border border-white/5" style={{ backgroundColor: s.c }} />
+                                <span className="text-[9px] text-[#6B7280]">{s.label}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+            <TabsContent value="faction">
+              <Card className="bg-[#111318] border-[#1F2937]/60 mt-4">
+                <CardContent className="p-5">
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
+                    {Object.entries(FACTION_COLORS).map(([faction, colors]) => (
+                      <div key={faction} className="space-y-3">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="w-14 h-14 rounded-xl flex items-center justify-center text-2xl font-black border-2 shadow-lg"
+                            style={{ borderColor: colors.primary, backgroundColor: `${colors.primary}15`, color: colors.primary, boxShadow: `0 0 15px ${colors.primary}30` }}
+                          >
+                            {faction}
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-[#F5F0E8]">{getFactionName(faction)}</p>
+                            <p className="text-[10px] text-[#6B7280]">Faction Color</p>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          {[
+                            { label: '主色', c: colors.primary },
+                            { label: '浅色', c: colors.light },
+                            { label: '描述', c: colors.desc },
+                          ].map((s) => (
+                            <div key={s.label}>
+                              <div className="w-full aspect-square rounded-lg border border-white/5" style={{ backgroundColor: s.c }} />
+                              <p className="text-[9px] text-[#6B7280] text-center mt-1">{s.label}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </Section>
 
-// ══════════════════════════════════════════════════════════════
-// MAIN PAGE COMPONENT
-// ══════════════════════════════════════════════════════════════
-
-export default function IntegrityDashboard() {
-  const [activeSection, setActiveSection] = useState<SectionId>('overview')
-  const [sidebarOpen, setSidebarOpen] = useState(false)
-  const mainRef = useRef<HTMLDivElement>(null)
-  const sectionRefs = useRef<Record<SectionId, HTMLDivElement | null>>({
-    overview: null, issues: null, dependency: null,
-    'flow-breaks': null, missing: null, roadmap: null,
-  })
-
-  const scrollToSection = useCallback((sectionId: SectionId) => {
-    setActiveSection(sectionId)
-    setSidebarOpen(false)
-    const el = sectionRefs.current[sectionId]
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }
-  }, [])
-
-  // Intersection observer for active section tracking
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            const id = entry.target.id as SectionId
-            if (NAV_SECTIONS.some(s => s.id === id)) {
-              setActiveSection(id)
-            }
-          }
-        }
-      },
-      { rootMargin: '-20% 0px -60% 0px', threshold: 0 }
-    )
-
-    Object.values(sectionRefs.current).forEach(el => {
-      if (el) observer.observe(el)
-    })
-
-    return () => observer.disconnect()
-  }, [])
-
-  return (
-    <div className="h-screen w-full flex bg-[#0a0b10] text-white overflow-hidden">
-      {/* Mobile sidebar overlay */}
-      <AnimatePresence>
-        {sidebarOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 z-40 lg:hidden"
-            onClick={() => setSidebarOpen(false)}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Sidebar */}
-      <aside className={cn(
-        'fixed lg:static inset-y-0 left-0 z-50 w-60 bg-[#0d0f15] border-r border-slate-800/60 flex flex-col transform transition-transform duration-300 ease-in-out',
-        sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-      )}>
-        {/* Logo */}
-        <div className="flex items-center justify-between px-4 py-4 border-b border-slate-800/60 flex-shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
-              <Gamepad2 className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <div className="text-sm font-bold text-amber-100 tracking-wide">九州争鼎</div>
-              <div className="text-[10px] text-slate-500">系统完整性分析</div>
-            </div>
-          </div>
-          <button
-            onClick={() => setSidebarOpen(false)}
-            className="lg:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Nav */}
-        <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-0.5">
-          {NAV_SECTIONS.map((section) => {
-            const isActive = activeSection === section.id
-            const Icon = section.icon
-            const issueCount = section.id === 'issues' ? CRITICAL_ISSUES.length : undefined
-            return (
-              <motion.button
-                key={section.id}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => scrollToSection(section.id)}
-                className={cn(
-                  'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 relative overflow-hidden',
-                  isActive
-                    ? 'bg-gradient-to-r from-amber-500/15 to-amber-600/5 text-amber-100 shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-                )}
-              >
-                {isActive && (
+        {/* ═══ Section 3: UI Structure Diagram ═══ */}
+        <Section id="structure" title="UI结构图" subtitle=" UIManager 层级与面板架构" icon={LayoutGrid}>
+          <div className="space-y-6">
+            {/* Layer Structure */}
+            <Card className="bg-[#111318] border-[#1F2937]/60">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm text-[#9CA3AF]">Canvas Layer Stack</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {LAYER_INFO.map((layer, i) => (
                   <motion.div
-                    layoutId="integrity-nav-active"
-                    className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-amber-500 rounded-r-full"
-                    transition={{ type: 'spring', bounce: 0.15, duration: 0.4 }}
-                  />
-                )}
-                <Icon className={cn('w-4 h-4 flex-shrink-0', isActive ? 'text-amber-400' : 'text-slate-500')} />
-                <span className="truncate text-[13px]">{section.label}</span>
-                {issueCount !== undefined && (
-                  <Badge variant="outline" className="ml-auto text-[9px] bg-red-500/10 text-red-400 border-red-500/30 px-1.5">
-                    {issueCount}
-                  </Badge>
-                )}
-              </motion.button>
-            )
-          })}
-        </nav>
+                    key={layer.name}
+                    className="flex items-center gap-4 group"
+                    initial={{ opacity: 0, x: -20 }}
+                    whileInView={{ opacity: 1, x: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: i * 0.08 }}
+                  >
+                    <Badge variant="outline" className="w-14 justify-center text-[10px] font-mono border-[#4A5568]/50 text-[#6B7280]">
+                      Z:{layer.z}
+                    </Badge>
+                    <div
+                      className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors group-hover:scale-110"
+                      style={{ backgroundColor: `${layer.color}15`, border: `1px solid ${layer.color}30` }}
+                    >
+                      <layer.icon className="w-4 h-4" style={{ color: layer.color }} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-[#D1D5DB]">{layer.name}</p>
+                      <p className="text-[10px] text-[#6B7280]">{layer.desc}</p>
+                    </div>
+                    {/* Layer bar */}
+                    <div className="hidden sm:block w-32 h-2 rounded-full overflow-hidden bg-[#1a1b23]">
+                      <motion.div
+                        className="h-full rounded-full"
+                        style={{ backgroundColor: layer.color }}
+                        initial={{ width: 0 }}
+                        whileInView={{ width: `${((layer.z + 100) / 600) * 100}%` }}
+                        viewport={{ once: true }}
+                        transition={{ delay: 0.3 + i * 0.08, duration: 0.5 }}
+                      />
+                    </div>
+                  </motion.div>
+                ))}
+              </CardContent>
+            </Card>
 
-        {/* Sidebar Footer */}
-        <div className="flex-shrink-0 px-4 py-3 border-t border-slate-800/60">
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-[10px]">
-              <span className="text-slate-500">系统总体评分</span>
-              <span className="text-red-400 font-bold">
-                {Math.round(SERVICES.reduce((a, s) => a + s.healthScore, 0) / SERVICES.length)}/100
-              </span>
+            {/* Panel Tree */}
+            <Card className="bg-[#111318] border-[#1F2937]/60">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm text-[#9CA3AF]">Panel Architecture</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <svg viewBox="0 0 880 380" className="w-full min-w-[700px]" xmlns="http://www.w3.org/2000/svg">
+                    {/* Background grid */}
+                    <defs>
+                      <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                        <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#1F293760" strokeWidth="0.5" />
+                      </pattern>
+                      <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#C4973B" />
+                        <stop offset="100%" stopColor="#D4A017" />
+                      </linearGradient>
+                    </defs>
+                    <rect width="880" height="380" fill="url(#grid)" rx="8" />
+
+                    {/* GameEntry */}
+                    <rect x="340" y="12" width="200" height="40" rx="6" fill="#C4973B20" stroke="#C4973B" strokeWidth="1.5" />
+                    <text x="440" y="37" textAnchor="middle" fill="#C4973B" fontSize="13" fontWeight="bold">GameEntry</text>
+
+                    {/* Line down */}
+                    <line x1="440" y1="52" x2="440" y2="72" stroke="#C4973B60" strokeWidth="1.5" />
+                    <polygon points="436,72 444,72 440,78" fill="#C4973B60" />
+
+                    {/* UIManager */}
+                    <rect x="340" y="78" width="200" height="40" rx="6" fill="#C23B2220" stroke="#C23B22" strokeWidth="1.5" />
+                    <text x="440" y="103" textAnchor="middle" fill="#C23B22" fontSize="13" fontWeight="bold">UIManager (Singleton)</text>
+
+                    {/* Line down to Login */}
+                    <line x1="440" y1="118" x2="440" y2="148" stroke="#C4973B40" strokeWidth="1" />
+                    <polygon points="436,148 444,148 440,154" fill="#C4973B40" />
+
+                    {/* LoginPanel */}
+                    <rect x="365" y="154" width="150" height="34" rx="5" fill="#1F2937" stroke="#4A5568" strokeWidth="1" />
+                    <text x="440" y="176" textAnchor="middle" fill="#D1D5DB" fontSize="11">LoginPanel</text>
+
+                    {/* Arrow down */}
+                    <line x1="440" y1="188" x2="440" y2="212" stroke="#C4973B40" strokeWidth="1" />
+                    <polygon points="436,212 444,212 440,218" fill="#C4973B40" />
+
+                    {/* MainCityPanel (large) */}
+                    <rect x="310" y="218" width="260" height="42" rx="6" fill="#2E8B5720" stroke="#2E8B57" strokeWidth="2" />
+                    <text x="440" y="244" textAnchor="middle" fill="#2E8B57" fontSize="13" fontWeight="bold">MainCityPanel (主城)</text>
+
+                    {/* Branches from MainCity */}
+                    {/* Branch lines */}
+                    <line x1="340" y1="260" x2="120" y2="300" stroke="#4A556840" strokeWidth="1" strokeDasharray="4,2" />
+                    <line x1="380" y1="260" x2="270" y2="300" stroke="#4A556840" strokeWidth="1" strokeDasharray="4,2" />
+                    <line x1="440" y1="260" x2="440" y2="300" stroke="#4A556840" strokeWidth="1" strokeDasharray="4,2" />
+                    <line x1="500" y1="260" x2="600" y2="300" stroke="#4A556840" strokeWidth="1" strokeDasharray="4,2" />
+                    <line x1="540" y1="260" x2="740" y2="300" stroke="#4A556840" strokeWidth="1" strokeDasharray="4,2" />
+
+                    {/* Child panels */}
+                    {[
+                      { x: 50, label: 'QuestPanel', icon: '📋', color: '#D4A017' },
+                      { x: 200, label: 'BattlePanel', icon: '⚔️', color: '#C23B22' },
+                      { x: 370, label: 'MapPanel', icon: '🗺️', color: '#3498DB' },
+                      { x: 530, label: 'ShopPanel', icon: '🏪', color: '#D97706' },
+                      { x: 670, label: 'GuildPanel', icon: '🏛️', color: '#9B59B6' },
+                    ].map((panel) => (
+                      <g key={panel.label}>
+                        <rect x={panel.x} y="300" width="150" height="34" rx="5" fill="#1F2937" stroke={panel.color} strokeWidth="1" />
+                        <text x={panel.x + 20} y={322} textAnchor="start" fill="#D1D5DB" fontSize="11">{panel.icon} {panel.label}</text>
+                      </g>
+                    ))}
+
+                    {/* Card system branch */}
+                    <line x1="600" y1="317" x2="660" y2="317" stroke="#FFD70040" strokeWidth="1" strokeDasharray="3,2" />
+                    <line x1="660" y1="317" x2="660" y2="352" stroke="#FFD70040" strokeWidth="1" strokeDasharray="3,2" />
+
+                    {/* Card sub-panels */}
+                    <rect x="560" y="350" width="100" height="24" rx="4" fill="#FFD70010" stroke="#FFD70060" strokeWidth="0.8" />
+                    <text x="610" y="366" textAnchor="middle" fill="#DAA520" fontSize="9">CardCollection</text>
+                    <rect x="670" y="350" width="70" height="24" rx="4" fill="#9B59B610" stroke="#9B59B660" strokeWidth="0.8" />
+                    <text x="705" y="366" textAnchor="middle" fill="#A569BD" fontSize="9">Gacha</text>
+                    <rect x="750" y="350" width="70" height="24" rx="4" fill="#2E8B5710" stroke="#2E8B5760" strokeWidth="0.8" />
+                    <text x="785" y="366" textAnchor="middle" fill="#52BE80" fontSize="9">DeckEdit</text>
+                  </svg>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* MainCity Breakdown */}
+            <Card className="bg-[#111318] border-[#1F2937]/60">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm text-[#9CA3AF]">MainCityPanel 子组件</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                  {[
+                    { name: 'ResourceBar', desc: '资源栏（卷轴）', icon: Package },
+                    { name: 'BuildingQueue', desc: '建筑队列', icon: Castle },
+                    { name: 'CityMap', desc: '城市地图', icon: MapPin },
+                    { name: 'QuickActions', desc: '快捷操作', icon: Zap },
+                    { name: 'Navigation', desc: '导航按钮', icon: Compass },
+                    { name: 'Announcement', desc: '公告面板', icon: ScrollText },
+                  ].map((comp) => (
+                    <motion.div
+                      key={comp.name}
+                      className="p-3 rounded-lg bg-[#0d0e14] border border-[#1F2937]/60 text-center hover:border-[#C4973B]/30 transition-colors group"
+                      whileHover={{ y: -2 }}
+                    >
+                      <comp.icon className="w-5 h-5 text-[#6B7280] mx-auto mb-2 group-hover:text-[#C4973B] transition-colors" />
+                      <p className="text-xs font-medium text-[#D1D5DB]">{comp.name}</p>
+                      <p className="text-[10px] text-[#4A5568] mt-0.5">{comp.desc}</p>
+                    </motion.div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </Section>
+
+        {/* ═══ Section 4: Hero Card Layout ═══ */}
+        <Section id="card" title="武将卡牌布局" subtitle="HeroCardRenderer 70/30 分栏设计" icon={ShieldCheck}>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* SSR Card */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Badge className="bg-[#FFD70020] text-[#FFD700] border-[#FFD700]/30 text-xs">SSR 品质</Badge>
+                <span className="text-xs text-[#6B7280]">金光流动 + 粒子特效</span>
+              </div>
+              <motion.div
+                className="relative w-full max-w-xs mx-auto aspect-[2.5/3.5] rounded-2xl overflow-hidden"
+                style={{
+                  border: '2.5px solid #DAA520',
+                  boxShadow: '0 0 30px #FFD70040, 0 0 60px #FFD70015, inset 0 0 20px #FFD70010',
+                }}
+              >
+                {/* Portrait Area 70% */}
+                <div className="relative w-full h-[70%] bg-gradient-to-b from-[#1a1a2e] to-[#0f1020] overflow-hidden">
+                  {/* Placeholder portrait */}
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="text-5xl opacity-30">🎭</div>
+                  </div>
+                  {/* Gold shimmer overlay */}
+                  <motion.div
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-yellow-400/25 to-transparent"
+                    animate={{ x: ['-120%', '120%'] }}
+                    transition={{ duration: 2.5, repeat: Infinity, repeatDelay: 2 }}
+                  />
+                  {/* Faction badge */}
+                  <div className="absolute top-3 left-3 px-2 py-0.5 rounded text-[10px] font-bold bg-[#C23B22]/80 text-white">
+                    蜀
+                  </div>
+                  {/* NEW tag */}
+                  <div className="absolute top-3 right-3 px-2 py-0.5 rounded text-[10px] font-bold bg-[#2E8B57] text-white animate-pulse">
+                    NEW
+                  </div>
+                  {/* Stars */}
+                  <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-0.5">
+                    {[1, 2, 3, 4, 5].map((s) => (
+                      <Star key={s} className="w-3.5 h-3.5 fill-[#FFD700] text-[#FFD700]" />
+                    ))}
+                  </div>
+                  {/* Quality label */}
+                  <div className="absolute bottom-2 right-2 text-[10px] font-mono font-bold text-[#FFD700] bg-black/50 px-1.5 py-0.5 rounded">
+                    SSR
+                  </div>
+                </div>
+
+                {/* Info Area 30% */}
+                <div className="relative w-full h-[30%] bg-gradient-to-b from-[#111827] to-[#0a0b10] p-3">
+                  <p className="text-sm font-bold text-[#F5F0E8] truncate">诸葛亮</p>
+                  <p className="text-[10px] text-[#9CA3AF]">卧龙先生 · 蜀国军师</p>
+                  <div className="flex items-center justify-between mt-1.5">
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] text-[#6B7280]">Lv.</span>
+                      <span className="text-xs font-bold text-[#D4A017]">80</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Flame className="w-3 h-3 text-[#C23B22]" />
+                      <span className="text-xs font-bold text-[#C23B22]">15,820</span>
+                    </div>
+                  </div>
+                  {/* Seal stamp */}
+                  <motion.div
+                    className="absolute bottom-2 right-2 w-7 h-7 rounded-sm border-2 border-[#C23B22]/60 flex items-center justify-center text-[8px] text-[#C23B22] font-bold bg-[#C23B22]/10"
+                    animate={{ rotate: [-2, 2, -2] }}
+                    transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+                  >
+                    蜀印
+                  </motion.div>
+                </div>
+              </motion.div>
             </div>
-            <Progress
-              value={Math.round(SERVICES.reduce((a, s) => a + s.healthScore, 0) / SERVICES.length)}
-              className="h-1.5 [&>div]:bg-red-500"
-            />
-            <p className="text-[9px] text-slate-600 text-center">⚠️ 6/8 服务无法编译</p>
+
+            {/* Card Structure Breakdown */}
+            <div className="space-y-4">
+              <div className="text-xs text-[#9CA3AF]">布局结构说明</div>
+              <div className="space-y-3">
+                {[
+                  { label: '立绘区域', ratio: '70%', desc: '武将立绘、势力徽章、星级、品质标签、NEW标记', color: '#C4973B' },
+                  { label: '信息区域', ratio: '30%', desc: '姓名、称号、势力、等级、战力、印章', color: '#9CA3AF' },
+                  { label: '品质边框', ratio: '自适应', desc: 'SSR金框+流光 / SR紫框+雾气 / R绿框+微光', color: '#FFD700' },
+                  { label: '动效层级', ratio: '覆盖层', desc: '金光流动(SSR) / 紫雾弥漫(SR) / 翠光微闪(R)', color: '#9B59B6' },
+                ].map((item) => (
+                  <div key={item.label} className="flex gap-3 items-start">
+                    <div className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ backgroundColor: item.color }} />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-[#D1D5DB]">{item.label}</span>
+                        <Badge variant="outline" className="text-[9px] py-0 border-[#4A5568]/50 text-[#6B7280]">{item.ratio}</Badge>
+                      </div>
+                      <p className="text-[11px] text-[#6B7280] mt-0.5">{item.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <Separator className="bg-[#1F2937]" />
+              <div className="text-xs text-[#9CA3AF]">品质视觉效果对比</div>
+              <div className="grid grid-cols-4 gap-2">
+                {(['SSR', 'SR', 'R', '良'] as const).map((r) => {
+                  const c = RARITY_COLORS[r];
+                  return (
+                    <div key={r} className="text-center">
+                      <motion.div
+                        className="w-full aspect-square rounded-lg mb-1"
+                        style={{ border: `2px solid ${c.border}`, boxShadow: `0 0 15px ${c.glow}` }}
+                        whileHover={{ scale: 1.08 }}
+                      >
+                        <div className="w-full h-full flex items-center justify-center text-lg font-black bg-[#111318]" style={{ color: c.primary }}>
+                          {r}
+                        </div>
+                      </motion.div>
+                      <span className="text-[10px] text-[#6B7280]">{r}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </Section>
+
+        {/* ═══ Section 5: World Map Grid ═══ */}
+        <Section id="map" title="世界地图网格" subtitle="HexMapRenderer 平顶六角格 · 9×7" icon={Map}>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Hex Grid Visual */}
+            <Card className="bg-[#111318] border-[#1F2937]/60 lg:col-span-2">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm text-[#9CA3AF]">Hex Grid Layout (9×7)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="w-full overflow-x-auto">
+                  <svg viewBox="0 0 560 420" className="w-full min-w-[420px]" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="560" height="420" fill="#0a0b10" rx="8" />
+
+                    {/* Grid - flat-top hexagons, offset rows */}
+                    {/* Row 0 */}
+                    <HexCell x={60} y={50} fill="#1a2a1a" stroke="#2E8B57" terrain="city" label="许昌" />
+                    <HexCell x={120} y={50} fill="#1a1a2e" />
+                    <HexCell x={180} y={50} fill="#1a2a1a" stroke="#3498DB" terrain="city" label="洛阳" />
+                    <HexCell x={240} y={50} fill="#1a1a2e" />
+                    <HexCell x={300} y={50} fill="#2a1a1a" stroke="#C23B22" terrain="city" label="长安" />
+                    <HexCell x={360} y={50} fill="#1a1a2e" />
+                    <HexCell x={420} y={50} fill="#1a2a1a" terrain="mountain" />
+                    <HexCell x={480} y={50} fill="#1a1a2e" />
+                    <HexCell x={540} y={50} fill="#1a1a2e" />
+
+                    {/* Row 1 (offset) */}
+                    <HexCell x={90} y={100} fill="#1a1a2e" terrain="river" />
+                    <HexCell x={150} y={100} fill="#1a1a2e" />
+                    <HexCell x={210} y={100} fill="#1a1a2a" terrain="mountain" />
+                    <HexCell x={270} y={100} fill="#1a2a1a" />
+                    <HexCell x={330} y={100} fill="#1a1a2e" terrain="river" />
+                    <HexCell x={390} y={100} fill="#1a1a2e" />
+                    <HexCell x={450} y={100} fill="#1a2a1a" />
+                    <HexCell x={510} y={100} fill="#2a2a1a" stroke="#D4A017" terrain="city" label="建业" isCapital />
+
+                    {/* Row 2 */}
+                    <HexCell x={60} y={150} fill="#1a1a2e" />
+                    <HexCell x={120} y={150} fill="#1a1a2e" terrain="mountain" />
+                    <HexCell x={180} y={150} fill="#1a1a2e" />
+                    <HexCell x={240} y={150} fill="#1a2a1a" stroke="#2E8B57" />
+                    <HexCell x={300} y={150} fill="#1a1a2e" />
+                    <HexCell x={360} y={150} fill="#1a1a2e" />
+                    <HexCell x={420} y={150} fill="#1a1a2e" />
+                    <HexCell x={480} y={150} fill="#1a2a1a" />
+                    <HexCell x={540} y={150} fill="#1a1a2e" />
+
+                    {/* Row 3 (offset) */}
+                    <HexCell x={90} y={200} fill="#1a1a2e" terrain="river" />
+                    <HexCell x={150} y={200} fill="#1a2a1a" stroke="#2E8B57" />
+                    <HexCell x={210} y={200} fill="#1a1a2e" />
+                    <HexCell x={270} y={200} fill="#2a1a1a" stroke="#C23B22" />
+                    <HexCell x={330} y={200} fill="#1a1a2e" />
+                    <HexCell x={390} y={200} fill="#1a2a1a" stroke="#2E8B57" />
+                    <HexCell x={450} y={200} fill="#1a1a2e" />
+                    <HexCell x={510} y={200} fill="#1a1a2e" />
+
+                    {/* Row 4 */}
+                    <HexCell x={60} y={250} fill="#1a1a2e" />
+                    <HexCell x={120} y={250} fill="#1a1a2e" />
+                    <HexCell x={180} y={250} fill="#1a2a1a" stroke="#3498DB" terrain="city" label="成都" />
+                    <HexCell x={240} y={250} fill="#1a1a2e" terrain="river" />
+                    <HexCell x={300} y={250} fill="#1a1a2e" terrain="mountain" />
+                    <HexCell x={360} y={250} fill="#1a1a2e" />
+                    <HexCell x={420} y={250} fill="#1a2a1a" />
+                    <HexCell x={480} y={250} fill="#1a1a2e" />
+                    <HexCell x={540} y={250} fill="#1a1a2e" />
+
+                    {/* Row 5 (offset) */}
+                    <HexCell x={90} y={300} fill="#1a1a2e" />
+                    <HexCell x={150} y={300} fill="#1a1a2e" />
+                    <HexCell x={210} y={300} fill="#1a1a2e" />
+                    <HexCell x={270} y={300} fill="#1a1a2e" terrain="river" />
+                    <HexCell x={330} y={300} fill="#1a1a2e" />
+                    <HexCell x={390} y={300} fill="#1a1a2e" terrain="mountain" />
+                    <HexCell x={450} y={300} fill="#2a2a1a" stroke="#D4A017" terrain="city" label="襄阳" isCapital />
+                    <HexCell x={510} y={300} fill="#1a1a2e" />
+
+                    {/* Row 6 */}
+                    <HexCell x={60} y={350} fill="#1a1a2e" terrain="mountain" />
+                    <HexCell x={120} y={350} fill="#1a1a2e" />
+                    <HexCell x={180} y={350} fill="#1a2a1a" stroke="#2E8B57" terrain="city" label="荆州" />
+                    <HexCell x={240} y={350} fill="#1a1a2e" />
+                    <HexCell x={300} y={350} fill="#1a1a2e" />
+                    <HexCell x={360} y={350} fill="#1a1a2e" />
+                    <HexCell x={420} y={350} fill="#1a1a2e" />
+                    <HexCell x={480} y={350} fill="#1a1a2a" terrain="mountain" />
+                    <HexCell x={540} y={350} fill="#1a1a2e" />
+
+                    {/* Region Labels (watermark style) */}
+                    <text x="130" y="130" textAnchor="middle" fill="#1F2937" fontSize="22" fontWeight="bold" opacity="0.5">中原</text>
+                    <text x="420" y="180" textAnchor="middle" fill="#1F2937" fontSize="22" fontWeight="bold" opacity="0.5">江东</text>
+                    <text x="180" y="290" textAnchor="middle" fill="#1F2937" fontSize="22" fontWeight="bold" opacity="0.5">巴蜀</text>
+                    <text x="350" y="360" textAnchor="middle" fill="#1F2937" fontSize="18" fontWeight="bold" opacity="0.5">荆楚</text>
+
+                    {/* Legend */}
+                    <rect x="10" y="388" width="540" height="24" rx="4" fill="#111318" />
+                    <text x="20" y="404" fill="#6B7280" fontSize="9">图例:</text>
+                    {[
+                      { color: '#2E8B57', label: '己方' },
+                      { color: '#C23B22', label: '敌方' },
+                      { color: '#3498DB', label: '联盟' },
+                      { color: '#D4A017', label: '都城' },
+                    ].map((item, idx) => (
+                      <g key={item.label}>
+                        <rect x={55 + idx * 75} y={395} width={10} height={10} rx="2" fill={item.color} opacity={0.7} />
+                        <text x={70 + idx * 75} y={404} fill="#9CA3AF" fontSize="9">{item.label}</text>
+                      </g>
+                    ))}
+                    <text x={360} y={404} fill="#8B7355" fontSize="10">⛰</text>
+                    <text x={374} y={404} fill="#9CA3AF" fontSize="9">山脉</text>
+                    <text x={415} y={404} fill="#5DADE2" fontSize="10">〰</text>
+                    <text x={430} y={404} fill="#9CA3AF" fontSize="9">河流</text>
+                  </svg>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Map Info */}
+            <div className="space-y-4">
+              <Card className="bg-[#111318] border-[#1F2937]/60">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm text-[#9CA3AF]">地图配置</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {[
+                    { label: '网格尺寸', value: '9 × 7 (63格)' },
+                    { label: '六角类型', value: 'Flat-Top (平顶)' },
+                    { label: '坐标系统', value: 'Offset Coordinates' },
+                    { label: '地形类型', value: '山脉 / 河流 / 城市 / 平原' },
+                  ].map((item) => (
+                    <div key={item.label} className="flex justify-between text-xs">
+                      <span className="text-[#6B7280]">{item.label}</span>
+                      <span className="text-[#D1D5DB] font-mono">{item.value}</span>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+              <Card className="bg-[#111318] border-[#1F2937]/60">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm text-[#9CA3AF]">占领状态色</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {[
+                    { label: '中立', color: '#4A5568', desc: '无归属领地' },
+                    { label: '己方', color: '#2E8B57', desc: '绿色边框' },
+                    { label: '联盟', color: '#3498DB', desc: '蓝色边框' },
+                    { label: '敌方', color: '#C23B22', desc: '红色边框' },
+                    { label: '争夺中', color: '#D4A017', desc: '金色脉冲动画' },
+                  ].map((item) => (
+                    <div key={item.label} className="flex items-center gap-3">
+                      <div className="w-4 h-4 rounded-sm shrink-0" style={{ backgroundColor: item.color, border: '1px solid #2A2D3A' }} />
+                      <div>
+                        <p className="text-xs text-[#D1D5DB]">{item.label}</p>
+                        <p className="text-[10px] text-[#4A5568]">{item.desc}</p>
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+              <Card className="bg-[#111318] border-[#1F2937]/60">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm text-[#9CA3AF]">都城标记</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-3">
+                    <motion.div
+                      className="w-10 h-10 flex items-center justify-center"
+                      animate={{ boxShadow: ['0 0 2px #D4A01730', '0 0 12px #D4A01760', '0 0 2px #D4A01730'] }}
+                      transition={{ duration: 2, repeat: Infinity }}
+                    >
+                      <Hexagon className="w-8 h-8 text-[#D4A017]" strokeWidth={1.5} />
+                    </motion.div>
+                    <div>
+                      <p className="text-xs text-[#D1D5DB]">青铜边框 + 脉冲光效</p>
+                      <p className="text-[10px] text-[#4A5568]">更大的六角格 + 动态呼吸</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </Section>
+
+        {/* ═══ Section 6: Animation Catalog ═══ */}
+        <Section id="animations" title="动效目录" subtitle="InkWashEffect 7种定制动画" icon={Zap}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {ANIMATIONS.map((anim, i) => (
+              <motion.div
+                key={anim.name}
+                className="group"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.06 }}
+              >
+                <Card className="bg-[#111318] border-[#1F2937]/60 hover:border-[#2A2D3A] transition-colors h-full">
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-[#F5F0E8]">{anim.cn}</span>
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            'text-[9px] py-0',
+                            anim.tag === 'SSR' && 'border-[#FFD700]/40 text-[#FFD700]',
+                            anim.tag === 'SR' && 'border-[#9B59B6]/40 text-[#9B59B6]',
+                            anim.tag === '面板' && 'border-[#D4A017]/40 text-[#D4A017]',
+                            anim.tag === '标记' && 'border-[#C23B22]/40 text-[#C23B22]',
+                            anim.tag === '通用' && 'border-[#4A5568]/40 text-[#6B7280]',
+                          )}
+                        >
+                          {anim.tag}
+                        </Badge>
+                      </div>
+                      <Badge variant="outline" className="text-[9px] py-0 border-[#4A5568]/30 text-[#4A5568] font-mono">
+                        {anim.duration}
+                      </Badge>
+                    </div>
+                    {/* Preview */}
+                    <div className="rounded-lg overflow-hidden">
+                      {ANIM_PREVIEWS[anim.name]}
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-mono text-[#6B7280] mb-0.5">{anim.name}</p>
+                      <p className="text-[11px] text-[#9CA3AF] leading-relaxed">{anim.desc}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
+          <Card className="bg-[#111318] border-[#1F2937]/60 mt-6">
+            <CardContent className="p-5">
+              <h4 className="text-sm font-medium text-[#D1D5DB] mb-3">自定义缓动函数</h4>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                  { name: 'EaseInkSpread', cn: '水墨扩散', desc: 'ease-out cubic' },
+                  { name: 'EaseStampPress', cn: '印章按压', desc: 'spring(1.2, 8)' },
+                  { name: 'EaseBambooUnroll', cn: '竹简展开', desc: 'ease-in-out back' },
+                  { name: 'EaseGoldFlow', cn: '金光流动', desc: 'linear infinite' },
+                ].map((easing) => (
+                  <div key={easing.name} className="p-3 rounded-lg bg-[#0d0e14] border border-[#1F2937]/60">
+                    <p className="text-xs font-medium text-[#D1D5DB]">{easing.cn}</p>
+                    <p className="text-[10px] font-mono text-[#6B7280]">{easing.name}</p>
+                    <p className="text-[10px] text-[#4A5568] mt-1">{easing.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </Section>
+
+        {/* ═══ Section 7: File Architecture ═══ */}
+        <Section id="files" title="文件架构" subtitle="Unity C# 项目文件树" icon={FolderTree}>
+          <Card className="bg-[#111318] border-[#1F2937]/60">
+            <CardContent className="p-5">
+              <ScrollArea className="max-h-[560px] pr-4">
+                <div className="space-y-0.5 font-mono text-xs">
+                  {FILE_TREE.map((item, i) => {
+                    const indent = (item.name.match(/^(\s*)/)?.[1].length || 0) / 2;
+                    const name = item.name.trim();
+                    const isNew = item.status === 'new';
+                    const isRefactored = item.status === 'refactored';
+                    const isFolder = item.type === 'folder';
+                    const fileName = name.endsWith('/') ? name : name.replace('.cs', '.cs');
+
+                    return (
+                      <motion.div
+                        key={i}
+                        className="flex items-center gap-2 py-1 px-2 rounded hover:bg-[#1a1b23] transition-colors group"
+                        style={{ paddingLeft: `${indent * 20 + 8}px` }}
+                        initial={{ opacity: 0 }}
+                        whileInView={{ opacity: 1 }}
+                        viewport={{ once: true }}
+                        transition={{ delay: i * 0.015 }}
+                      >
+                        {isFolder ? (
+                          <TreePine className="w-3.5 h-3.5 text-[#6B7280] shrink-0" />
+                        ) : (
+                          <Code2 className="w-3.5 h-3.5 text-[#4A5568] shrink-0" />
+                        )}
+                        <span className={cn(
+                          isFolder ? 'text-[#D1D5DB] font-medium' : 'text-[#9CA3AF]',
+                        )}>
+                          {fileName}
+                        </span>
+                        {item.desc && (
+                          <span className="text-[9px] text-[#4A5568] hidden sm:inline">— {item.desc}</span>
+                        )}
+                        {isNew && (
+                          <Badge className="ml-auto bg-[#2E8B5715] text-[#2E8B57] border-[#2E8B57]/30 text-[9px] py-0 px-1.5 shrink-0">
+                            NEW
+                          </Badge>
+                        )}
+                        {isRefactored && (
+                          <Badge className="ml-auto bg-[#D4A01715] text-[#D4A017] border-[#D4A017]/30 text-[9px] py-0 px-1.5 shrink-0">
+                            REFACTORED
+                          </Badge>
+                        )}
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+
+          {/* File Stats */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
+            {[
+              { label: '新建文件', value: '3', color: '#2E8B57', icon: FileTree },
+              { label: '重构文件', value: '2', color: '#D4A017', icon: FileTree },
+              { label: '现有文件', value: '15', color: '#6B7280', icon: FileTree },
+              { label: '模块总数', value: '8', color: '#3498DB', icon: FileTree },
+            ].map((stat) => (
+              <Card key={stat.label} className="bg-[#111318] border-[#1F2937]/60">
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${stat.color}15`, border: `1px solid ${stat.color}30` }}>
+                    <stat.icon className="w-4 h-4" style={{ color: stat.color }} />
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold text-[#F5F0E8]">{stat.value}</p>
+                    <p className="text-[10px] text-[#6B7280]">{stat.label}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </Section>
+      </main>
+
+      {/* ─── Footer ─── */}
+      <footer className="border-t border-[#1F2937]/60 mt-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <Swords className="w-4 h-4 text-[#C4973B]" />
+              <span className="text-sm text-[#6B7280]">战国·楚汉争霸 — Unity Client UI Architecture</span>
+            </div>
+            <div className="flex items-center gap-4 text-[10px] text-[#4A5568]">
+              <span>UIStyleConfig</span>
+              <span>·</span>
+              <span>InkWashEffect</span>
+              <span>·</span>
+              <span>HeroCardRenderer</span>
+              <span>·</span>
+              <span>HexMapRenderer</span>
+            </div>
           </div>
         </div>
-      </aside>
-
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Top Header */}
-        <header className="flex-shrink-0 h-14 bg-[#0d0f15]/80 backdrop-blur-xl border-b border-slate-800/60 flex items-center justify-between px-4 lg:px-6">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="lg:hidden p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-base font-bold text-slate-100">系统完整性分析</h1>
-                <Badge variant="outline" className="text-[9px] bg-red-500/10 text-red-400 border-red-500/30 hidden sm:inline-flex">
-                  <AlertOctagon className="w-2.5 h-2.5 mr-1" />
-                  {SERVICES.filter(s => s.healthScore < 30).length} 项严重
-                </Badge>
-              </div>
-              <p className="text-[10px] text-slate-600 hidden sm:block">九州争鼎 · SLG 卡牌游戏 · 后端微服务架构分析报告</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-red-500/5 border border-red-500/20 rounded-lg">
-              <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-              <span className="text-[10px] text-red-400/80">系统存在严重问题</span>
-            </div>
-          </div>
-        </header>
-
-        {/* Content Area */}
-        <main ref={mainRef} className="flex-1 overflow-y-auto">
-          <div className="max-w-7xl mx-auto px-4 lg:px-6 py-6 space-y-10">
-            {/* Section 1: System Overview */}
-            <section id="overview" ref={el => { sectionRefs.current.overview = el }} className="scroll-mt-20">
-              <SectionHeader id="overview" icon={LayoutDashboard} title="系统概览" subtitle="8 个微服务的健康状态总览" />
-              <SystemOverview />
-            </section>
-
-            <Separator className="bg-slate-800/40" />
-
-            {/* Section 2: Critical Issues */}
-            <section id="issues" ref={el => { sectionRefs.current.issues = el }} className="scroll-mt-20">
-              <SectionHeader id="issues" icon={AlertTriangle} title="关键问题" subtitle={`${CRITICAL_ISSUES.length} 个已识别的问题，可按服务/级别/类型筛选`} />
-              <CriticalIssues />
-            </section>
-
-            <Separator className="bg-slate-800/40" />
-
-            {/* Section 3: Dependency Graph */}
-            <section id="dependency" ref={el => { sectionRefs.current.dependency = el }} className="scroll-mt-20">
-              <SectionHeader id="dependency" icon={Network} title="服务依赖图谱" subtitle="微服务间的调用关系与连接状态" />
-              <DependencyGraph />
-            </section>
-
-            <Separator className="bg-slate-800/40" />
-
-            {/* Section 4: Logic Flow Breaks */}
-            <section id="flow-breaks" ref={el => { sectionRefs.current['flow-breaks'] = el }} className="scroll-mt-20">
-              <SectionHeader id="flow-breaks" icon={GitBranch} title="逻辑断链" subtitle="8 条核心业务流程中的断链分析" />
-              <FlowBreaks />
-            </section>
-
-            <Separator className="bg-slate-800/40" />
-
-            {/* Section 5: Missing Modules */}
-            <section id="missing" ref={el => { sectionRefs.current.missing = el }} className="scroll-mt-20">
-              <SectionHeader id="missing" icon={Package} title="缺失模块" subtitle={`${MISSING_MODULES.length} 个未实现或不完整的模块`} />
-              <MissingModules />
-            </section>
-
-            <Separator className="bg-slate-800/40" />
-
-            {/* Section 6: Roadmap */}
-            <section id="roadmap" ref={el => { sectionRefs.current.roadmap = el }} className="scroll-mt-20">
-              <SectionHeader id="roadmap" icon={Target} title="修复路线图" subtitle="按优先级排列的修复建议（P1 → P12）" />
-              <FixRoadmap />
-            </section>
-
-            {/* Footer */}
-            <footer className="pt-4 pb-8 text-center">
-              <Separator className="bg-slate-800/40 mb-4" />
-              <p className="text-[10px] text-slate-600">
-                九州争鼎 · 系统完整性分析仪表盘 · 自动生成报告
-              </p>
-              <p className="text-[9px] text-slate-700 mt-1">
-                数据基于后端 Go 微服务代码静态分析 · 更新时间: {new Date().toLocaleDateString('zh-CN')}
-              </p>
-            </footer>
-          </div>
-        </main>
-
-        {/* Mobile bottom nav */}
-        <nav className="lg:hidden flex-shrink-0 bg-[#0d0f15]/90 backdrop-blur-xl border-t border-slate-800/60">
-          <div className="flex items-center justify-around px-1 pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom))]">
-            {NAV_SECTIONS.slice(0, 5).map(section => {
-              const isActive = activeSection === section.id
-              const Icon = section.icon
-              return (
-                <button
-                  key={section.id}
-                  onClick={() => scrollToSection(section.id)}
-                  className="relative flex flex-col items-center justify-center py-1.5 px-2 min-w-[44px] rounded-lg transition-all"
-                >
-                  <Icon className={cn('w-4.5 h-4.5 transition-colors', isActive ? 'text-amber-400' : 'text-slate-600')} />
-                  <span className={cn('text-[9px] mt-0.5 transition-colors', isActive ? 'text-amber-400 font-medium' : 'text-slate-600')}>
-                    {section.label}
-                  </span>
-                  {isActive && (
-                    <motion.div
-                      layoutId="integrity-mobile-indicator"
-                      className="absolute -top-1 left-1/2 -translate-x-1/2 w-4 h-0.5 bg-amber-500 rounded-full"
-                      transition={{ type: 'spring', bounce: 0.15, duration: 0.4 }}
-                    />
-                  )}
-                </button>
-              )
-            })}
-          </div>
-        </nav>
-      </div>
+      </footer>
     </div>
-  )
+  );
 }
 
-// ── Section Header ──
+/* ═══════════════════════════════════════════
+   Helper Functions
+   ═══════════════════════════════════════════ */
 
-function SectionHeader({ id, icon: Icon, title, subtitle }: { id: SectionId; icon: typeof LayoutDashboard; title: string; subtitle: string }) {
-  return (
-    <div className="flex items-center gap-3 mb-5">
-      <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-amber-500/15 to-amber-600/5 border border-amber-500/20 flex items-center justify-center flex-shrink-0">
-        <Icon className="w-4 h-4 text-amber-400" />
-      </div>
-      <div>
-        <h2 className="text-lg font-bold text-slate-200">{title}</h2>
-        <p className="text-xs text-slate-500">{subtitle}</p>
-      </div>
-    </div>
-  )
+function getChineseColorName(name: string): string {
+  const map: Record<string, string> = {
+    InkPaper: '宣纸色',
+    InkDark: '墨色',
+    CinnabarRed: '朱砂红',
+    BronzeGold: '青铜金',
+    LacquerBlack: '漆黑',
+    BambooYellow: '竹简黄',
+    SilkWhite: '丝帛白',
+    JadeGreen: '翡翠绿',
+    AmberOrange: '琥珀橙',
+  };
+  return map[name] || name;
+}
+
+function getFactionName(faction: string): string {
+  const map: Record<string, string> = {
+    魏: '曹魏',
+    蜀: '蜀汉',
+    吴: '东吴',
+    群: '群雄',
+  };
+  return map[faction] || faction;
 }

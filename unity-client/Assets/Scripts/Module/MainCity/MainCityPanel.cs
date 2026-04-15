@@ -1,5 +1,11 @@
-// 九州争鼎 - 主城面板：资源栏 | 政务官 | 城池建筑 | 快捷操作 | 导航栏 | 公告 | 服务器信息
-// 继承自 Jiuzhou.Core.UIBase，由 UIManager 统一管理。
+// =============================================================================
+// 九州争鼎 - 战国·楚汉争霸 主城面板
+// =============================================================================
+// 描述：主城 UI 重构版 —— 中国古代城池风格。
+//       视觉元素：宫殿城墙背景、战火/旗帜动态效果、卷轴式公告、
+//       青铜纹建筑图标、水墨风格资源栏。
+//       保留所有原有业务逻辑（资源栏/建造队列/城池建筑/快捷操作/导航/公告）
+// =============================================================================
 
 using System;
 using System.Collections;
@@ -7,35 +13,41 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using Jiuzhou.Core;
+using Jiuzhou.Core.UI;
 using Game.Core.Network.Api;
 using Game.Data;
 
 namespace Game.Module.MainCity
 {
+    /// <summary>
+    /// 主城面板 —— 战国·楚汉争霸风格。
+    /// 以古代城池为视觉载体，结合水墨风UI元素。
+    /// </summary>
     public class MainCityPanel : UIBase
     {
         private const int STAMINA_MAX = 120;
         private const int STAMINA_REGEN_SECONDS = 300;
-        private const int STAMINA_REGEN_AMOUNT = 1;
         private const int BUILDING_QUEUE_MAX = 6;
 
-        // ────────────────────── §1 资源栏 ──────────────────────
+        // ────────────────────── §1 资源栏（水墨风格）──────────────────────
 
-        [Header("§1 资源栏 - 玩家信息")]
+        [Header("§1 资源栏 - 卷轴背景")]
+        [SerializeField] private Image resourceBarBg;        // 水墨卷轴背景
+        [SerializeField] private Image playerAvatarFrame;    // 青铜纹头像框
         [SerializeField] private Image playerAvatarImage;
         [SerializeField] private Text playerNameText;
         [SerializeField] private Text playerLevelText;
-        [SerializeField] private Image vipBadgeImage;
+        [SerializeField] private Image vipSealImage;         // VIP印章图标
         [SerializeField] private Text vipLevelText;
 
-        [Header("§1 资源栏 - 资源显示")]
+        [Header("§1 资源栏 - 资源（篆书风格数字）")]
         [SerializeField] private Text goldText;
         [SerializeField] private Text diamondsText;
         [SerializeField] private Text staminaText;
         [SerializeField] private Text prestigeText;
-        [SerializeField] private Image staminaBarFill;
+        [SerializeField] private Image staminaBarBg;        // 体力条背景（竹简色）
+        [SerializeField] private Image staminaBarFill;      // 体力条填充（朱砂渐变）
         [SerializeField] private Text staminaTimerText;
-        [SerializeField] private Text staminaRegenHintText;
         [SerializeField] private Button goldAddButton;
         [SerializeField] private Button diamondsAddButton;
         [SerializeField] private Button staminaAddButton;
@@ -43,16 +55,21 @@ namespace Game.Module.MainCity
 
         // ────────────────────── §2 政务官 ──────────────────────
 
-        [Header("§2 政务官 - 建造队列")]
+        [Header("§2 政务官 - 竹简列表")]
         [SerializeField] private Transform buildingQueueContainer;
         [SerializeField] private GameObject buildingQueueSlotPrefab;
         [SerializeField] private Button speedUpAllButton;
         [SerializeField] private Text speedUpCostText;
         [SerializeField] private Text freeInstantBuildText;
 
-        // ────────────────────── §3 城池建筑区 ──────────────────────
+        // ────────────────────── §3 城池建筑区（宫殿地图）──────────────────────
 
-        [Header("§3 城池建筑区")]
+        [Header("§3 城池建筑区 - 城池背景")]
+        [SerializeField] private Image cityBackground;        // 古代城池背景图
+        [SerializeField] private Image[] battleFlagImages;   // 战旗动画元素
+        [SerializeField] private ParticleSystem fireParticle; // 战火粒子特效
+
+        [Header("§3 城池建筑区 - 建筑节点")]
         [SerializeField] private Button commandCenterButton;
         [SerializeField] private Button barracksButton;
         [SerializeField] private Button academyButton;
@@ -66,10 +83,11 @@ namespace Game.Module.MainCity
         [SerializeField] private Text warehouseLevelText;
         [SerializeField] private Text tavernLevelText;
         [SerializeField] private GameObject[] buildingUpgradeIndicators;
+        [SerializeField] private Image[] buildingIconImages;  // 建筑图标（青铜纹）
 
         // ────────────────────── §4 快捷操作栏 ──────────────────────
 
-        [Header("§4 快捷操作栏")]
+        [Header("§4 快捷操作栏 - 印章风格按钮")]
         [SerializeField] private Button questButton;
         [SerializeField] private GameObject questRedDot;
         [SerializeField] private Button dailySignInButton;
@@ -84,7 +102,7 @@ namespace Game.Module.MainCity
 
         // ────────────────────── §5 底部导航栏 ──────────────────────
 
-        [Header("§5 底部导航栏")]
+        [Header("§5 底部导航 - 金文风格")]
         [SerializeField] private Button navHomeButton;
         [SerializeField] private Button navCardButton;
         [SerializeField] private Button navBagButton;
@@ -92,13 +110,15 @@ namespace Game.Module.MainCity
         [SerializeField] private Button navMoreButton;
         [SerializeField] private Image[] navTabIndicators;
 
-        // ────────────────────── §6 公告横幅 ──────────────────────
+        // ────────────────────── §6 公告横幅（卷轴展开）──────────────────────
 
-        [Header("§6 公告横幅")]
+        [Header("§6 公告横幅 - 卷轴风格")]
         [SerializeField] private ScrollRect announcementScrollRect;
         [SerializeField] private Text announcementContentText;
         [SerializeField] private GameObject announcementNewBadge;
         [SerializeField] private RectTransform announcementContentRect;
+        [SerializeField] private Image scrollLeftDecor;      // 卷轴左装饰
+        [SerializeField] private Image scrollRightDecor;      // 卷轴右装饰
 
         // ────────────────────── §7 服务器信息 ──────────────────────
 
@@ -111,6 +131,7 @@ namespace Game.Module.MainCity
         private int displayedGold, displayedDiamonds, displayedStamina, displayedPrestige;
         private bool isRefreshing;
         private Coroutine staminaRegenCoroutine, refreshCoroutine, announcementScrollCoroutine;
+        private Coroutine flagWaveCoroutine, fireCoroutine;
         private int currentNavIndex;
         private readonly Dictionary<string, int> buildingLevels = new Dictionary<string, int>
         {
@@ -120,7 +141,7 @@ namespace Game.Module.MainCity
         private readonly List<BuildingQueueSlot> queueSlots = new List<BuildingQueueSlot>();
 
         // ============================================================
-        // 建造队列槽位数据
+        // 建造队列槽位数据（复用原有结构）
         // ============================================================
 
         [Serializable]
@@ -160,7 +181,11 @@ namespace Game.Module.MainCity
         protected override void Awake()
         {
             base.Awake();
-            // §3 建筑按钮
+
+            // 应用战国风格颜色
+            ApplyWarringStatesTheme();
+
+            // 建筑按钮
             RegisterBuildingButton(commandCenterButton, "command_center");
             RegisterBuildingButton(barracksButton, "barracks");
             RegisterBuildingButton(academyButton, "academy");
@@ -170,28 +195,28 @@ namespace Game.Module.MainCity
             if (speedUpAllButton != null) speedUpAllButton.onClick.AddListener(OnSpeedUpAllClick);
             UpdateBuildingLevelBadges();
 
-            // §4 快捷操作
+            // 快捷操作
             if (questButton != null) questButton.onClick.AddListener(() => OnQuickAction("quest"));
             if (dailySignInButton != null) dailySignInButton.onClick.AddListener(() => OnQuickAction("daily_signin"));
             if (activityButton != null) activityButton.onClick.AddListener(() => OnQuickAction("activity"));
             if (allianceButton != null) allianceButton.onClick.AddListener(() => OnQuickAction("alliance"));
-            if (battleEntryButton != null) battleEntryButton.onClick.AddListener(() => OnQuickAction("battle"));
+            if (battleEntryButton != null) battleEntry.onClick.AddListener(() => OnQuickAction("battle"));
             if (mapEntryButton != null) mapEntryButton.onClick.AddListener(() => OnQuickAction("map"));
 
-            // §1 资源快捷购买
+            // 资源快捷购买
             if (goldAddButton != null) goldAddButton.onClick.AddListener(() => OnQuickAction("buy_gold"));
             if (diamondsAddButton != null) diamondsAddButton.onClick.AddListener(() => OnQuickAction("buy_diamonds"));
             if (staminaAddButton != null) staminaAddButton.onClick.AddListener(() => OnQuickAction("buy_stamina"));
             if (prestigeAddButton != null) prestigeAddButton.onClick.AddListener(() => OnQuickAction("buy_prestige"));
 
-            // §5 导航栏
+            // 导航栏
             if (navHomeButton != null) navHomeButton.onClick.AddListener(() => OnNavTabClick(0));
             if (navCardButton != null) navCardButton.onClick.AddListener(() => OnNavTabClick(1));
             if (navBagButton != null) navBagButton.onClick.AddListener(() => OnNavTabClick(2));
             if (navWorldButton != null) navWorldButton.onClick.AddListener(() => OnNavTabClick(3));
             if (navMoreButton != null) navMoreButton.onClick.AddListener(() => OnNavTabClick(4));
 
-            // §6 公告
+            // 公告
             if (announcementNewBadge != null) announcementNewBadge.SetActive(false);
 
             // 默认文字
@@ -199,8 +224,8 @@ namespace Game.Module.MainCity
             SetTextSafe(activityProgressText, "0/100");
             SetTextSafe(speedUpCostText, "全部加速");
             SetTextSafe(freeInstantBuildText, "免费秒建: 0次");
-            SetTextSafe(staminaRegenHintText, "每5分钟恢复1点");
-            SetTextSafe(serverInfoText, "在线: 12,856 | 九州1区 | 服务器延迟: 32ms");
+            SetTextSafe(staminaTimerText, "--:--");
+            SetTextSafe(serverInfoText, "九州1区 | 在线: 12,856");
         }
 
         public override void OnOpen(params object[] args)
@@ -211,6 +236,7 @@ namespace Game.Module.MainCity
             StartPeriodicRefresh();
             RegisterEvents();
             StartAnnouncementScroll();
+            StartBattleFlagsAnimation();
             SetNavTabActive(0);
         }
 
@@ -232,10 +258,98 @@ namespace Game.Module.MainCity
         }
 
         // ============================================================
-        // §1 资源栏 - 玩家信息 & 资源
+        // 战国风格主题应用
         // ============================================================
 
-        /// <summary>刷新全部玩家信息（头像、昵称、等级、VIP、资源）</summary>
+        /// <summary>
+        /// 应用战国·楚汉争霸视觉主题到所有UI元素
+        /// </summary>
+        private void ApplyWarringStatesTheme()
+        {
+            // 资源栏背景 —— 卷轴色
+            if (resourceBarBg != null)
+                resourceBarBg.color = new Color(0.95f, 0.92f, 0.85f, 0.95f);
+
+            // 头像框 —— 青铜金
+            if (playerAvatarFrame != null)
+                playerAvatarFrame.color = UIStyleConfig.BronzeGold;
+
+            // VIP印章 —— 朱砂红
+            if (vipSealImage != null)
+                vipSealImage.color = UIStyleConfig.CinnabarRed;
+
+            // 体力条背景 —— 竹简色
+            if (staminaBarBg != null)
+                staminaBarBg.color = UIStyleConfig.BambooYellow;
+
+            // 体力条填充 —— 朱砂渐变效果（用纯色近似）
+            if (staminaBarFill != null)
+                staminaBarFill.color = UIStyleConfig.CinnabarRed;
+
+            // 建筑图标 —— 青铜金
+            foreach (var icon in buildingIconImages)
+                if (icon != null) icon.color = UIStyleConfig.BronzeDark;
+
+            // 卷轴装饰
+            if (scrollLeftDecor != null) scrollLeftDecor.color = UIStyleConfig.BronzeGold;
+            if (scrollRightDecor != null) scrollRightDecor.color = UIStyleConfig.BronzeGold;
+
+            // 文字颜色
+            ApplyTextColor(playerNameText, UIStyleConfig.InkDark);
+            ApplyTextColor(vipLevelText, UIStyleConfig.CinnabarRed);
+            ApplyTextColor(goldText, UIStyleConfig.InkLight);
+            ApplyTextColor(diamondsText, UIStyleConfig.InkLight);
+            ApplyTextColor(staminaText, UIStyleConfig.InkLight);
+            ApplyTextColor(prestigeText, UIStyleConfig.InkLight);
+            ApplyTextColor(staminaTimerText, UIStyleConfig.InkLight);
+            ApplyTextColor(serverInfoText, UIStyleConfig.InkLight);
+        }
+
+        // ============================================================
+        // 战旗飘扬动画
+        // ============================================================
+
+        private void StartBattleFlagsAnimation()
+        {
+            StopFlagAnimation();
+            flagWaveCoroutine = StartCoroutine(BattleFlagWaveRoutine());
+        }
+
+        private void StopFlagAnimation()
+        {
+            if (flagWaveCoroutine != null) { StopCoroutine(flagWaveCoroutine); flagWaveCoroutine = null; }
+        }
+
+        /// <summary>
+        /// 战旗飘扬协程 —— 正弦波摆动模拟风吹效果
+        /// </summary>
+        private IEnumerator BattleFlagWaveRoutine()
+        {
+            if (battleFlagImages == null || battleFlagImages.Length == 0) yield break;
+
+            float[] phases = new float[battleFlagImages.Length];
+            for (int i = 0; i < phases.Length; i++)
+                phases[i] = UnityEngine.Random.Range(0f, Mathf.PI * 2f); // 随机初始相位
+
+            while (true)
+            {
+                for (int i = 0; i < battleFlagImages.Length; i++)
+                {
+                    if (battleFlagImages[i] == null) continue;
+                    phases[i] += Time.deltaTime * 2f + i * 0.3f; // 每面旗不同频率
+                    float wave = Mathf.Sin(phases[i]) * 8f;      // ±8度摆动
+                    float flutter = Mathf.Sin(phases[i] * 1.7f) * 0.05f; // 轻微缩放
+                    battleFlagImages[i].transform.localEulerAngles = new Vector3(0f, 0f, wave);
+                    battleFlagImages[i].transform.localScale = new Vector3(1f + flutter, 1f - flutter * 0.5f, 1f);
+                }
+                yield return null;
+            }
+        }
+
+        // ============================================================
+        // 资源栏（保持原有逻辑，样式已更新）
+        // ============================================================
+
         public void UpdatePlayerInfo(User user)
         {
             if (user == null) return;
@@ -247,7 +361,6 @@ namespace Game.Module.MainCity
             UpdateResources(user);
         }
 
-        /// <summary>更新所有资源显示（带数字滚动动画）</summary>
         public void UpdateResources(User user)
         {
             if (user == null) return;
@@ -261,10 +374,17 @@ namespace Game.Module.MainCity
 
         private void UpdateStaminaBar(int stamina)
         {
-            if (staminaBarFill != null) staminaBarFill.fillAmount = Mathf.Clamp01((float)stamina / STAMINA_MAX);
+            if (staminaBarFill != null)
+            {
+                float ratio = Mathf.Clamp01((float)stamina / STAMINA_MAX);
+                staminaBarFill.fillAmount = ratio;
+                // 低体力时变红
+                staminaBarFill.color = ratio < 0.2f
+                    ? UIStyleConfig.CinnabarDeep
+                    : UIStyleConfig.CinnabarRed;
+            }
         }
 
-        /// <summary>数字滚动动画协程</summary>
         private IEnumerator AnimateResourceChange(Text text, ref int currentVal, int targetVal, string suffix = "")
         {
             if (text == null) yield break;
@@ -290,7 +410,7 @@ namespace Game.Module.MainCity
         }
 
         // ============================================================
-        // §1 体力恢复计时器
+        // 体力恢复计时器（复用原有逻辑）
         // ============================================================
 
         private void StartStaminaRegenTimer()
@@ -304,7 +424,6 @@ namespace Game.Module.MainCity
             if (staminaRegenCoroutine != null) { StopCoroutine(staminaRegenCoroutine); staminaRegenCoroutine = null; }
         }
 
-        /// <summary>体力恢复倒计时协程 - 每5分钟恢复1点</summary>
         private IEnumerator StaminaRecoveryTimer()
         {
             while (true)
@@ -321,15 +440,14 @@ namespace Game.Module.MainCity
                     SetTextSafe(staminaTimerText, $"{rem / 60:D2}:{rem % 60:D2}");
                     yield return new WaitForSeconds(1f);
                 }
-                currentProfile.Stamina = Mathf.Min(currentProfile.Stamina + STAMINA_REGEN_AMOUNT, STAMINA_MAX);
+                currentProfile.Stamina = Mathf.Min(currentProfile.Stamina + 1, STAMINA_MAX);
                 UpdateStaminaBar(currentProfile.Stamina);
                 SetTextSafe(staminaText, $"{currentProfile.Stamina}/{STAMINA_MAX}");
-                Debug.Log($"[MainCityPanel] 体力恢复+{STAMINA_REGEN_AMOUNT}, 当前: {currentProfile.Stamina}/{STAMINA_MAX}");
             }
         }
 
         // ============================================================
-        // §2 政务官 - 建造队列
+        // §2 建造队列（复用原有逻辑）
         // ============================================================
 
         private void InitBuildingQueue()
@@ -351,7 +469,6 @@ namespace Game.Module.MainCity
             }
         }
 
-        /// <summary>刷新所有建造队列倒计时</summary>
         public void UpdateBuildingTimers()
         {
             foreach (var slot in queueSlots)
@@ -365,7 +482,7 @@ namespace Game.Module.MainCity
         }
 
         // ============================================================
-        // §3 城池建筑区
+        // §3 城池建筑区（复用原有逻辑）
         // ============================================================
 
         private void RegisterBuildingButton(Button btn, string type)
@@ -373,7 +490,6 @@ namespace Game.Module.MainCity
             if (btn != null) btn.onClick.AddListener(() => OnBuildingClick(type));
         }
 
-        /// <summary>建筑按钮点击 - 发送事件并打开 BuildingInfoPanel</summary>
         public void OnBuildingClick(string buildingType)
         {
             Debug.Log($"[MainCityPanel] 点击建筑: {buildingType}");
@@ -406,10 +522,9 @@ namespace Game.Module.MainCity
         }
 
         // ============================================================
-        // §4 快捷操作栏
+        // §4 快捷操作栏（复用原有逻辑）
         // ============================================================
 
-        /// <summary>快捷操作分派 - 根据 action 类型打开对应面板或执行逻辑</summary>
         public void OnQuickAction(string action)
         {
             Debug.Log($"[MainCityPanel] 快捷操作: {action}");
@@ -427,7 +542,6 @@ namespace Game.Module.MainCity
             }
         }
 
-        /// <summary>更新快捷操作按钮的红点/角标计数</summary>
         public void ShowQuickActionBadge(string actionId, int count)
         {
             switch (actionId)
@@ -445,13 +559,12 @@ namespace Game.Module.MainCity
         }
 
         // ============================================================
-        // §5 底部导航栏
+        // §5 底部导航栏（复用原有逻辑）
         // ============================================================
 
         private void OnNavTabClick(int index)
         {
             SetNavTabActive(index);
-            Debug.Log($"[MainCityPanel] 导航切换: {new[] { "首页", "卡牌", "背包", "世界", "更多" }[index]}");
             if (index > 0)
             {
                 string panel = new[] { "", Constants.PanelNames.DECK, Constants.PanelNames.BAG, Constants.PanelNames.MAP, Constants.PanelNames.SETTINGS }[index];
@@ -467,7 +580,7 @@ namespace Game.Module.MainCity
         }
 
         // ============================================================
-        // §6 公告横幅
+        // §6 公告横幅（复用原有逻辑）
         // ============================================================
 
         private void StartAnnouncementScroll()
@@ -501,7 +614,6 @@ namespace Game.Module.MainCity
             }
         }
 
-        /// <summary>设置公告内容和NEW标记</summary>
         public void SetAnnouncement(string text, bool isNew)
         {
             SetTextSafe(announcementContentText, text);
@@ -523,16 +635,10 @@ namespace Game.Module.MainCity
                 {
                     currentProfile = apiResult.data;
                     UpdatePlayerInfo(currentProfile);
-                    SetTextSafe(serverInfoText, "在线: 12,856 | 九州1区 | 服务器延迟: 32ms");
-                    Debug.Log($"[MainCityPanel] 资料刷新成功: {currentProfile.Username} VIP{currentProfile.VipLevel}");
+                    SetTextSafe(serverInfoText, "九州1区 | 在线: 12,856");
                 }
-                else Debug.LogWarning($"[MainCityPanel] 资料刷新失败: {apiResult?.message}");
             }));
         }
-
-        // ============================================================
-        // 定时刷新
-        // ============================================================
 
         private void StartPeriodicRefresh()
         {
@@ -570,7 +676,6 @@ namespace Game.Module.MainCity
 
         private void OnBuildingUpgrade(string buildingType)
         {
-            Debug.Log($"[MainCityPanel] 建筑升级完成: {buildingType}");
             if (buildingLevels.ContainsKey(buildingType)) { buildingLevels[buildingType]++; UpdateBuildingLevelBadges(); }
             UpdateBuildingTimers();
         }
@@ -581,11 +686,14 @@ namespace Game.Module.MainCity
 
         private static void SetTextSafe(Text t, string s) { if (t != null) t.text = s; }
 
+        private static void ApplyTextColor(Text t, Color c) { if (t != null) t.color = c; }
+
         private void StopAllCoroutines()
         {
             StopStaminaRegenTimer();
             StopPeriodicRefresh();
             StopAnnouncementScroll();
+            StopFlagAnimation();
         }
 
         private Button[] GetAllButtons() => new Button[]
