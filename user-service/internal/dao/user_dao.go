@@ -285,6 +285,27 @@ func (d *UserDAO) AddExp(ctx context.Context, id int64, exp int64) (int, error) 
         return result.RowsAffected()
 }
 
+// UpdateLevel 更新用户等级和经验值（升级后调用）
+func (d *UserDAO) UpdateLevel(ctx context.Context, id int64, level int, experience int64) error {
+        _, err := d.db.ExecContext(ctx,
+                `UPDATE users SET level = ?, experience = ?, updated_at = NOW() WHERE id = ?`,
+                level, experience, id,
+        )
+        if err != nil {
+                return fmt.Errorf("update user level failed: %w", err)
+        }
+        return nil
+}
+
+// GetFoodBalance 获取粮食余额
+func (d *UserDAO) GetFoodBalance(ctx context.Context, id int64) (int64, error) {
+        var food int64
+        err := d.db.QueryRowContext(ctx,
+                `SELECT COALESCE(food, 0) FROM users WHERE id = ?`, id,
+        ).Scan(&food)
+        return food, err
+}
+
 // GetGoldBalance 获取金币余额
 func (d *UserDAO) GetGoldBalance(ctx context.Context, id int64) (int64, error) {
         var gold int64

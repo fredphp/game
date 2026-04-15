@@ -398,6 +398,24 @@ func (d *GuildDAO) ListPendingApplications(ctx context.Context, guildID int64) (
         return apps, nil
 }
 
+// GetApplicationByID 获取申请详情
+func (d *GuildDAO) GetApplicationByID(ctx context.Context, appID int64) (*model.GuildApplication, error) {
+        a := &model.GuildApplication{}
+        err := d.db.QueryRowContext(ctx,
+                `SELECT id, guild_id, user_id, message, status, reviewer_id,
+                        review_time, review_note, created_at
+                 FROM guild_applications WHERE id = ?`, appID,
+        ).Scan(&a.ID, &a.GuildID, &a.UserID, &a.Message, &a.Status,
+                &a.ReviewerID, &a.ReviewTime, &a.ReviewNote, &a.CreatedAt)
+        if err != nil {
+                if errors.Is(err, sql.ErrNoRows) {
+                        return nil, ErrApplyNotFound
+                }
+                return nil, fmt.Errorf("get application by id: %w", err)
+        }
+        return a, nil
+}
+
 // ReviewApplication 审批申请
 func (d *GuildDAO) ReviewApplication(ctx context.Context, appID int64, status int8, reviewerID int64, note string) error {
         _, err := d.db.ExecContext(ctx,

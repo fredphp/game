@@ -1,87 +1,101 @@
 package main
 
 import (
-	"fmt"
-	"log"
+        "fmt"
+        "log"
 
-	"user-service/internal/dao"
-	"user-service/internal/handler"
-	"user-service/internal/router"
-	"user-service/internal/service"
-	pkgmysql "user-service/pkg/mysql"
-	myredis "user-service/pkg/redis"
-	pkgresponse "user-service/pkg/response"
+        "user-service/internal/dao"
+        "user-service/internal/handler"
+        "user-service/internal/router"
+        "user-service/internal/service"
+        pkgmysql "user-service/pkg/mysql"
+        myredis "user-service/pkg/redis"
+        pkgresponse "user-service/pkg/response"
 
-	"github.com/gin-gonic/gin"
-	"github.com/spf13/viper"
+        "github.com/gin-gonic/gin"
+        "github.com/spf13/viper"
 )
 
 func main() {
-	// ─────────────────────────────────
-	// 1. 加载配置
-	// ─────────────────────────────────
-	conf := viper.New()
-	conf.SetConfigName("config")
-	conf.SetConfigType("yaml")
-	conf.AddConfigPath("./config")
-	conf.AddConfigPath(".")
+        // ─────────────────────────────────
+        // 1. 加载配置
+        // ─────────────────────────────────
+        conf := viper.New()
+        conf.SetConfigName("config")
+        conf.SetConfigType("yaml")
+        conf.AddConfigPath("./config")
+        conf.AddConfigPath(".")
 
-	if err := conf.ReadInConfig(); err != nil {
-		log.Fatalf("❌ 加载配置文件失败: %v", err)
-	}
-	fmt.Println("✅ 配置文件加载成功")
+        if err := conf.ReadInConfig(); err != nil {
+                log.Fatalf("❌ 加载配置文件失败: %v", err)
+        }
+        fmt.Println("✅ 配置文件加载成功")
 
-	// ─────────────────────────────────
-	// 2. 初始化 MySQL
-	// ─────────────────────────────────
-	if err := pkgmysql.Init(conf); err != nil {
-		log.Fatalf("❌ MySQL 初始化失败: %v", err)
-	}
-	defer pkgmysql.Close()
-	fmt.Println("✅ MySQL 连接成功")
+        // ─────────────────────────────────
+        // 2. 初始化 MySQL
+        // ─────────────────────────────────
+        if err := pkgmysql.Init(conf); err != nil {
+                log.Fatalf("❌ MySQL 初始化失败: %v", err)
+        }
+        defer pkgmysql.Close()
+        fmt.Println("✅ MySQL 连接成功")
 
-	// ─────────────────────────────────
-	// 3. 初始化 Redis
-	// ─────────────────────────────────
-	if err := myredis.Init(conf); err != nil {
-		log.Fatalf("❌ Redis 初始化失败: %v", err)
-	}
-	defer myredis.Close()
-	fmt.Println("✅ Redis 连接成功")
+        // ─────────────────────────────────
+        // 3. 初始化 Redis
+        // ─────────────────────────────────
+        if err := myredis.Init(conf); err != nil {
+                log.Fatalf("❌ Redis 初始化失败: %v", err)
+        }
+        defer myredis.Close()
+        fmt.Println("✅ Redis 连接成功")
 
-	// ─────────────────────────────────
-	// 4. 初始化依赖层
-	// ─────────────────────────────────
-	userDAO := dao.NewUserDAO(pkgmysql.DB)
-	userService := service.NewUserService(userDAO)
-	userHandler := handler.NewUserHandler(userService)
+        // ─────────────────────────────────
+        // 4. 初始化依赖层
+        // ─────────────────────────────────
+        userDAO := dao.NewUserDAO(pkgmysql.DB)
+        userService := service.NewUserService(userDAO)
+        userHandler := handler.NewUserHandler(userService)
 
-	// ─────────────────────────────────
-	// 5. 启动 HTTP 服务
-	// ─────────────────────────────────
-	mode := conf.GetString("server.mode")
-	gin.SetMode(mode)
+        // 内部服务间调用
+        internalService := service.NewInternalService(userDAO)
+        internalHandler := handler.NewInternalHandler(internalService)
 
-	engine := gin.New()
-	router.Setup(engine, userHandler)
+        // ─────────────────────────────────
+        // 5. 启动 HTTP 服务
+        // ─────────────────────────────────
+        mode := conf.GetString("server.mode")
+        gin.SetMode(mode)
 
-	host := conf.GetString("server.host")
-	port := conf.GetInt("server.port")
-	addr := fmt.Sprintf("%s:%d", host, port)
+        engine := gin.New()
+        router.Setup(engine, userHandler, internalHandler)
 
-	// 注册统一错误码消息（可选）
-	_ = pkgresponse.GetMessage(pkgresponse.CodeSuccess)
+        host := conf.GetString("server.host")
+        port := conf.GetInt("server.port")
+        addr := fmt.Sprintf("%s:%d", host, port)
 
-	fmt.Printf("\n🚀 用户服务启动成功 → http://%s\n", addr)
-	fmt.Println("   健康检查 → GET /health")
-	fmt.Println("   注册     → POST /api/v1/user/register")
-	fmt.Println("   登录     → POST /api/v1/user/login")
-	fmt.Println("   用户信息 → GET  /api/v1/user/profile  [需要JWT]")
-	fmt.Println("   修改资料 → PUT  /api/v1/user/profile  [需要JWT]")
-	fmt.Println("   修改密码 → PUT  /api/v1/user/password [需要JWT]")
-	fmt.Println("   登出     → POST /api/v1/user/logout   [需要JWT]")
+        // 注册统一错误码消息（可选）
+        _ = pkgresponse.GetMessage(pkgresponse.CodeSuccess)
 
-	if err := engine.Run(addr); err != nil {
-		log.Fatalf("❌ 服务启动失败: %v", err)
-	}
+        fmt.Printf("\n🚀 用户服务启动成功 → http://%s\n", addr)
+        fmt.Println("   健康检查 → GET /health")
+        fmt.Println("   注册     → POST /api/v1/user/register")
+        fmt.Println("   登录     → POST /api/v1/user/login")
+        fmt.Println("   用户信息 → GET  /api/v1/user/profile  [需要JWT]")
+        fmt.Println("   修改资料 → PUT  /api/v1/user/profile  [需要JWT]")
+        fmt.Println("   修改密码 → PUT  /api/v1/user/password [需要JWT]")
+        fmt.Println("   登出     → POST /api/v1/user/logout   [需要JWT]")
+        fmt.Println("   ── 内部接口 ──────────────────────")
+        fmt.Println("   扣除钻石 → POST /internal/user/deduct-diamonds [API Key]")
+        fmt.Println("   增加钻石 → POST /internal/user/add-diamonds    [API Key]")
+        fmt.Println("   扣除金币 → POST /internal/user/deduct-gold     [API Key]")
+        fmt.Println("   增加金币 → POST /internal/user/add-gold        [API Key]")
+        fmt.Println("   增加经验 → POST /internal/user/add-exp         [API Key]")
+        fmt.Println("   扣除粮食 → POST /internal/user/deduct-food     [API Key]")
+        fmt.Println("   增加粮食 → POST /internal/user/add-food        [API Key]")
+        fmt.Println("   查询余额 → GET  /internal/user/balance         [API Key]")
+        fmt.Println("   更新VIP  → POST /internal/user/update-vip      [API Key]")
+
+        if err := engine.Run(addr); err != nil {
+                log.Fatalf("❌ 服务启动失败: %v", err)
+        }
 }
