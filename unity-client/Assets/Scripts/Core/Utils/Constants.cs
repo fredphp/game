@@ -141,6 +141,20 @@ namespace Jiuzhou.Core
         }
 
         // =====================================================================
+        // 配置检测 API 路径（客户端功能检测系统）
+        // =====================================================================
+
+        public static class ConfigApi
+        {
+            /// <summary>版本检查</summary>
+            public const string CHECK_VERSION = "/config/version/check";
+            /// <summary>获取功能开关列表</summary>
+            public const string GET_FEATURE_FLAGS = "/config/features";
+            /// <summary>热更新检查</summary>
+            public const string CHECK_HOT_UPDATE = "/config/hotupdate/check";
+        }
+
+        // =====================================================================
         // 地图服务 API 路径
         // =====================================================================
 
@@ -264,6 +278,8 @@ namespace Jiuzhou.Core
             public const string CONFIRM_DIALOG = "ConfirmDialog";
             /// <summary>奖励面板</summary>
             public const string REWARD = "RewardPanel";
+            /// <summary>更新提示面板</summary>
+            public const string UPDATE_PROMPT = "UpdatePromptPanel";
         }
 
         // =====================================================================
@@ -290,6 +306,8 @@ namespace Jiuzhou.Core
             public const string LANGUAGE = "language";
             /// <summary>新手引导已完成</summary>
             public const string GUIDE_COMPLETED = "guide_completed";
+            /// <summary>本地资源版本号</summary>
+            public const string RESOURCE_VERSION = "resource_version";
         }
 
         // =====================================================================
