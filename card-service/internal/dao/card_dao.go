@@ -34,13 +34,13 @@ func (d *CardDAO) GetCardByID(ctx context.Context, id int64) (*model.Card, error
         card := &model.Card{}
         err := d.db.QueryRowContext(ctx,
                 `SELECT id, name, title, rarity, element, faction, role,
-                        base_hp, base_atk, base_def, skill_id, lead_skill_id,
+                        base_hp, base_atk, base_def, innate_skill_id,
                         description, obtain_from, is_limited, created_at
                  FROM card_definitions WHERE id = ?`, id,
         ).Scan(
                 &card.ID, &card.Name, &card.Title, &card.Rarity, &card.Element,
                 &card.Faction, &card.Role, &card.BaseHP, &card.BaseATK, &card.BaseDEF,
-                &card.SkillID, &card.LeadSkillID, &card.Description,
+                &card.InnateSkillID, &card.Description,
                 &card.ObtainFrom, &card.IsLimited, &card.CreatedAt,
         )
         if err != nil {
@@ -68,7 +68,7 @@ func (d *CardDAO) GetCardsByIDs(ctx context.Context, ids []int64) (map[int64]*mo
 
         query := fmt.Sprintf(
                 `SELECT id, name, title, rarity, element, faction, role,
-                        base_hp, base_atk, base_def, skill_id, lead_skill_id,
+                        base_hp, base_atk, base_def, innate_skill_id,
                         description, obtain_from, is_limited, created_at
                  FROM card_definitions WHERE id IN (%s)`, placeholders,
         )
@@ -85,7 +85,7 @@ func (d *CardDAO) GetCardsByIDs(ctx context.Context, ids []int64) (map[int64]*mo
                 err := rows.Scan(
                         &card.ID, &card.Name, &card.Title, &card.Rarity, &card.Element,
                         &card.Faction, &card.Role, &card.BaseHP, &card.BaseATK, &card.BaseDEF,
-                        &card.SkillID, &card.LeadSkillID, &card.Description,
+                        &card.InnateSkillID, &card.Description,
                         &card.ObtainFrom, &card.IsLimited, &card.CreatedAt,
                 )
                 if err != nil {
