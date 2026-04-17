@@ -1,20 +1,24 @@
 # ============================================================
 # 九州争鼎 - 通用游戏服务 Dockerfile (Go 1.21)
-# 用于: user/battle/card/map/guild/payment/quest/season 服务
+# 用于: user/battle/card/map/guild/payment/season 服务
 # ============================================================
 
 FROM golang:1.21-alpine AS builder
 
 RUN apk --no-cache add git
 
+# 使用国内代理加速依赖下载
+ENV GOPROXY=https://goproxy.cn,direct
+
 WORKDIR /app
 
-# 依赖层
+# 先复制依赖文件并下载
 COPY go.mod ./
-COPY . .
+RUN go mod download
 
-# 下载依赖并编译
-RUN go mod tidy && CGO_ENABLED=0 GOOS=linux go build -o /service ./cmd/main.go
+# 再复制源码并编译
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -o /service ./cmd/main.go
 
 # ── 运行时镜像 ──
 FROM alpine:3.19
