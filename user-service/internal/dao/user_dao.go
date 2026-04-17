@@ -282,7 +282,7 @@ func (d *UserDAO) AddExp(ctx context.Context, id int64, exp int64) (int, error) 
         if err != nil {
                 return 0, err
         }
-        return result.RowsAffected()
+        return int(result.RowsAffected()), nil
 }
 
 // UpdateLevel 更新用户等级和经验值（升级后调用）

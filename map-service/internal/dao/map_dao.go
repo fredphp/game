@@ -1,33 +1,33 @@
 package dao
 
 import (
-	"context"
-	"database/sql"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"strings"
-	"time"
+        "context"
+        "database/sql"
+        "encoding/json"
+        "errors"
+        "fmt"
+        "strings"
+        "time"
 
-	"map-service/internal/model"
+        "map-service/internal/model"
 )
 
 var (
-	ErrRegionNotFound    = errors.New("region not found")
-	ErrCityNotFound      = errors.New("city not found")
-	ErrOccupationNotFound = errors.New("occupation not found")
-	ErrMarchNotFound     = errors.New("march not found")
-	ErrMarchDupID        = errors.New("march id duplicate")
-	ErrAllianceNotFound  = errors.New("alliance territory not found")
+        ErrRegionNotFound    = errors.New("region not found")
+        ErrCityNotFound      = errors.New("city not found")
+        ErrOccupationNotFound = errors.New("occupation not found")
+        ErrMarchNotFound     = errors.New("march not found")
+        ErrMarchDupID        = errors.New("march id duplicate")
+        ErrAllianceNotFound  = errors.New("alliance territory not found")
 )
 
 // MapDAO 地图数据访问层
 type MapDAO struct {
-	db *sql.DB
+        db *sql.DB
 }
 
 func NewMapDAO(db *sql.DB) *MapDAO {
-	return &MapDAO{db: db}
+        return &MapDAO{db: db}
 }
 
 // ================================================================
@@ -36,46 +36,46 @@ func NewMapDAO(db *sql.DB) *MapDAO {
 
 // ListRegions 获取所有区域
 func (d *MapDAO) ListRegions(ctx context.Context) ([]*model.MapRegion, error) {
-	rows, err := d.db.QueryContext(ctx,
-		`SELECT id, name, display_name, description, center_x, center_y,
-			terrain_type, resource_bonus, sort_order, created_at
-		 FROM map_regions ORDER BY sort_order ASC`)
-	if err != nil {
-		return nil, fmt.Errorf("list regions: %w", err)
-	}
-	defer rows.Close()
+        rows, err := d.db.QueryContext(ctx,
+                `SELECT id, name, display_name, description, center_x, center_y,
+                        terrain_type, resource_bonus, sort_order, created_at
+                 FROM map_regions ORDER BY sort_order ASC`)
+        if err != nil {
+                return nil, fmt.Errorf("list regions: %w", err)
+        }
+        defer rows.Close()
 
-	regions := make([]*model.MapRegion, 0)
-	for rows.Next() {
-		r := &model.MapRegion{}
-		err := rows.Scan(&r.ID, &r.Name, &r.DisplayName, &r.Description,
-			&r.CenterX, &r.CenterY, &r.TerrainType,
-			&r.ResourceBonus, &r.SortOrder, &r.CreatedAt)
-		if err != nil {
-			return nil, fmt.Errorf("scan region: %w", err)
-		}
-		regions = append(regions, r)
-	}
-	return regions, nil
+        regions := make([]*model.MapRegion, 0)
+        for rows.Next() {
+                r := &model.MapRegion{}
+                err := rows.Scan(&r.ID, &r.Name, &r.DisplayName, &r.Description,
+                        &r.CenterX, &r.CenterY, &r.TerrainType,
+                        &r.ResourceBonus, &r.SortOrder, &r.CreatedAt)
+                if err != nil {
+                        return nil, fmt.Errorf("scan region: %w", err)
+                }
+                regions = append(regions, r)
+        }
+        return regions, nil
 }
 
 // GetRegionByID 获取区域详情
 func (d *MapDAO) GetRegionByID(ctx context.Context, id int) (*model.MapRegion, error) {
-	r := &model.MapRegion{}
-	err := d.db.QueryRowContext(ctx,
-		`SELECT id, name, display_name, description, center_x, center_y,
-			terrain_type, resource_bonus, sort_order, created_at
-		 FROM map_regions WHERE id = ?`, id,
-	).Scan(&r.ID, &r.Name, &r.DisplayName, &r.Description,
-		&r.CenterX, &r.CenterY, &r.TerrainType,
-		&r.ResourceBonus, &r.SortOrder, &r.CreatedAt)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrRegionNotFound
-		}
-		return nil, fmt.Errorf("get region: %w", err)
-	}
-	return r, nil
+        r := &model.MapRegion{}
+        err := d.db.QueryRowContext(ctx,
+                `SELECT id, name, display_name, description, center_x, center_y,
+                        terrain_type, resource_bonus, sort_order, created_at
+                 FROM map_regions WHERE id = ?`, id,
+        ).Scan(&r.ID, &r.Name, &r.DisplayName, &r.Description,
+                &r.CenterX, &r.CenterY, &r.TerrainType,
+                &r.ResourceBonus, &r.SortOrder, &r.CreatedAt)
+        if err != nil {
+                if errors.Is(err, sql.ErrNoRows) {
+                        return nil, ErrRegionNotFound
+                }
+                return nil, fmt.Errorf("get region: %w", err)
+        }
+        return r, nil
 }
 
 // ================================================================
@@ -84,116 +84,116 @@ func (d *MapDAO) GetRegionByID(ctx context.Context, id int) (*model.MapRegion, e
 
 // ListAllCities 获取所有城池
 func (d *MapDAO) ListAllCities(ctx context.Context) ([]*model.MapCity, error) {
-	rows, err := d.db.QueryContext(ctx,
-		`SELECT id, name, region_id, pos_x, pos_y, level, terrain,
-			defense_base, food_output, wood_output, iron_output, gold_output,
-			is_capital, description, connections, created_at
-		 FROM map_cities ORDER BY region_id, level DESC, id ASC`)
-	if err != nil {
-		return nil, fmt.Errorf("list cities: %w", err)
-	}
-	defer rows.Close()
+        rows, err := d.db.QueryContext(ctx,
+                `SELECT id, name, region_id, pos_x, pos_y, level, terrain,
+                        defense_base, food_output, wood_output, iron_output, gold_output,
+                        is_capital, description, connections, created_at
+                 FROM map_cities ORDER BY region_id, level DESC, id ASC`)
+        if err != nil {
+                return nil, fmt.Errorf("list cities: %w", err)
+        }
+        defer rows.Close()
 
-	cities := make([]*model.MapCity, 0)
-	for rows.Next() {
-		c := &model.MapCity{}
-		err := rows.Scan(&c.ID, &c.Name, &c.RegionID, &c.PosX, &c.PosY,
-			&c.Level, &c.Terrain, &c.DefenseBase,
-			&c.FoodOutput, &c.WoodOutput, &c.IronOutput, &c.GoldOutput,
-			&c.IsCapital, &c.Description, &c.Connections, &c.CreatedAt)
-		if err != nil {
-			return nil, fmt.Errorf("scan city: %w", err)
-		}
-		cities = append(cities, c)
-	}
-	return cities, nil
+        cities := make([]*model.MapCity, 0)
+        for rows.Next() {
+                c := &model.MapCity{}
+                err := rows.Scan(&c.ID, &c.Name, &c.RegionID, &c.PosX, &c.PosY,
+                        &c.Level, &c.Terrain, &c.DefenseBase,
+                        &c.FoodOutput, &c.WoodOutput, &c.IronOutput, &c.GoldOutput,
+                        &c.IsCapital, &c.Description, &c.Connections, &c.CreatedAt)
+                if err != nil {
+                        return nil, fmt.Errorf("scan city: %w", err)
+                }
+                cities = append(cities, c)
+        }
+        return cities, nil
 }
 
 // GetCityByID 获取城池
 func (d *MapDAO) GetCityByID(ctx context.Context, id int64) (*model.MapCity, error) {
-	c := &model.MapCity{}
-	err := d.db.QueryRowContext(ctx,
-		`SELECT id, name, region_id, pos_x, pos_y, level, terrain,
-			defense_base, food_output, wood_output, iron_output, gold_output,
-			is_capital, description, connections, created_at
-		 FROM map_cities WHERE id = ?`, id,
-	).Scan(&c.ID, &c.Name, &c.RegionID, &c.PosX, &c.PosY,
-		&c.Level, &c.Terrain, &c.DefenseBase,
-		&c.FoodOutput, &c.WoodOutput, &c.IronOutput, &c.GoldOutput,
-		&c.IsCapital, &c.Description, &c.Connections, &c.CreatedAt)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrCityNotFound
-		}
-		return nil, fmt.Errorf("get city: %w", err)
-	}
-	return c, nil
+        c := &model.MapCity{}
+        err := d.db.QueryRowContext(ctx,
+                `SELECT id, name, region_id, pos_x, pos_y, level, terrain,
+                        defense_base, food_output, wood_output, iron_output, gold_output,
+                        is_capital, description, connections, created_at
+                 FROM map_cities WHERE id = ?`, id,
+        ).Scan(&c.ID, &c.Name, &c.RegionID, &c.PosX, &c.PosY,
+                &c.Level, &c.Terrain, &c.DefenseBase,
+                &c.FoodOutput, &c.WoodOutput, &c.IronOutput, &c.GoldOutput,
+                &c.IsCapital, &c.Description, &c.Connections, &c.CreatedAt)
+        if err != nil {
+                if errors.Is(err, sql.ErrNoRows) {
+                        return nil, ErrCityNotFound
+                }
+                return nil, fmt.Errorf("get city: %w", err)
+        }
+        return c, nil
 }
 
 // ListCitiesByRegion 按区域获取城池
 func (d *MapDAO) ListCitiesByRegion(ctx context.Context, regionID int) ([]*model.MapCity, error) {
-	rows, err := d.db.QueryContext(ctx,
-		`SELECT id, name, region_id, pos_x, pos_y, level, terrain,
-			defense_base, food_output, wood_output, iron_output, gold_output,
-			is_capital, description, connections, created_at
-		 FROM map_cities WHERE region_id = ? ORDER BY level DESC, id ASC`, regionID)
-	if err != nil {
-		return nil, fmt.Errorf("list cities by region: %w", err)
-	}
-	defer rows.Close()
+        rows, err := d.db.QueryContext(ctx,
+                `SELECT id, name, region_id, pos_x, pos_y, level, terrain,
+                        defense_base, food_output, wood_output, iron_output, gold_output,
+                        is_capital, description, connections, created_at
+                 FROM map_cities WHERE region_id = ? ORDER BY level DESC, id ASC`, regionID)
+        if err != nil {
+                return nil, fmt.Errorf("list cities by region: %w", err)
+        }
+        defer rows.Close()
 
-	cities := make([]*model.MapCity, 0)
-	for rows.Next() {
-		c := &model.MapCity{}
-		err := rows.Scan(&c.ID, &c.Name, &c.RegionID, &c.PosX, &c.PosY,
-			&c.Level, &c.Terrain, &c.DefenseBase,
-			&c.FoodOutput, &c.WoodOutput, &c.IronOutput, &c.GoldOutput,
-			&c.IsCapital, &c.Description, &c.Connections, &c.CreatedAt)
-		if err != nil {
-			return nil, fmt.Errorf("scan city: %w", err)
-		}
-		cities = append(cities, c)
-	}
-	return cities, nil
+        cities := make([]*model.MapCity, 0)
+        for rows.Next() {
+                c := &model.MapCity{}
+                err := rows.Scan(&c.ID, &c.Name, &c.RegionID, &c.PosX, &c.PosY,
+                        &c.Level, &c.Terrain, &c.DefenseBase,
+                        &c.FoodOutput, &c.WoodOutput, &c.IronOutput, &c.GoldOutput,
+                        &c.IsCapital, &c.Description, &c.Connections, &c.CreatedAt)
+                if err != nil {
+                        return nil, fmt.Errorf("scan city: %w", err)
+                }
+                cities = append(cities, c)
+        }
+        return cities, nil
 }
 
 // BatchGetCities 批量获取城池
 func (d *MapDAO) BatchGetCities(ctx context.Context, ids []int64) (map[int64]*model.MapCity, error) {
-	if len(ids) == 0 {
-		return make(map[int64]*model.MapCity), nil
-	}
-	placeholders := strings.Repeat("?,", len(ids))
-	placeholders = placeholders[:len(placeholders)-1]
-	args := make([]interface{}, 0, len(ids))
-	for _, id := range ids {
-		args = append(args, id)
-	}
+        if len(ids) == 0 {
+                return make(map[int64]*model.MapCity), nil
+        }
+        placeholders := strings.Repeat("?,", len(ids))
+        placeholders = placeholders[:len(placeholders)-1]
+        args := make([]interface{}, 0, len(ids))
+        for _, id := range ids {
+                args = append(args, id)
+        }
 
-	query := fmt.Sprintf(
-		`SELECT id, name, region_id, pos_x, pos_y, level, terrain,
-			defense_base, food_output, wood_output, iron_output, gold_output,
-			is_capital, description, connections, created_at
-		 FROM map_cities WHERE id IN (%s)`, placeholders)
+        query := fmt.Sprintf(
+                `SELECT id, name, region_id, pos_x, pos_y, level, terrain,
+                        defense_base, food_output, wood_output, iron_output, gold_output,
+                        is_capital, description, connections, created_at
+                 FROM map_cities WHERE id IN (%s)`, placeholders)
 
-	rows, err := d.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("batch get cities: %w", err)
-	}
-	defer rows.Close()
+        rows, err := d.db.QueryContext(ctx, query, args...)
+        if err != nil {
+                return nil, fmt.Errorf("batch get cities: %w", err)
+        }
+        defer rows.Close()
 
-	result := make(map[int64]*model.MapCity)
-	for rows.Next() {
-		c := &model.MapCity{}
-		err := rows.Scan(&c.ID, &c.Name, &c.RegionID, &c.PosX, &c.PosY,
-			&c.Level, &c.Terrain, &c.DefenseBase,
-			&c.FoodOutput, &c.WoodOutput, &c.IronOutput, &c.GoldOutput,
-			&c.IsCapital, &c.Description, &c.Connections, &c.CreatedAt)
-		if err != nil {
-			return nil, fmt.Errorf("scan city: %w", err)
-		}
-		result[c.ID] = c
-	}
-	return result, nil
+        result := make(map[int64]*model.MapCity)
+        for rows.Next() {
+                c := &model.MapCity{}
+                err := rows.Scan(&c.ID, &c.Name, &c.RegionID, &c.PosX, &c.PosY,
+                        &c.Level, &c.Terrain, &c.DefenseBase,
+                        &c.FoodOutput, &c.WoodOutput, &c.IronOutput, &c.GoldOutput,
+                        &c.IsCapital, &c.Description, &c.Connections, &c.CreatedAt)
+                if err != nil {
+                        return nil, fmt.Errorf("scan city: %w", err)
+                }
+                result[c.ID] = c
+        }
+        return result, nil
 }
 
 // ================================================================
@@ -202,82 +202,82 @@ func (d *MapDAO) BatchGetCities(ctx context.Context, ids []int64) (map[int64]*mo
 
 // GetOccupation 获取城池占领状态
 func (d *MapDAO) GetOccupation(ctx context.Context, cityID int64) (*model.CityOccupation, error) {
-	o := &model.CityOccupation{}
-	err := d.db.QueryRowContext(ctx,
-		`SELECT id, city_id, owner_type, owner_id, alliance_id,
-			garrison_power, occupy_time, defense_walls,
-			resource_stored, updated_at, created_at
-		 FROM city_occupations WHERE city_id = ?`, cityID,
-	).Scan(&o.ID, &o.CityID, &o.OwnerType, &o.OwnerID, &o.AllianceID,
-		&o.GarrisonPower, &o.OccupyTime, &o.DefenseWalls,
-		&o.ResourceStored, &o.UpdatedAt, &o.CreatedAt)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrOccupationNotFound
-		}
-		return nil, fmt.Errorf("get occupation: %w", err)
-	}
-	return o, nil
+        o := &model.CityOccupation{}
+        err := d.db.QueryRowContext(ctx,
+                `SELECT id, city_id, owner_type, owner_id, alliance_id,
+                        garrison_power, occupy_time, defense_walls,
+                        resource_stored, updated_at, created_at
+                 FROM city_occupations WHERE city_id = ?`, cityID,
+        ).Scan(&o.ID, &o.CityID, &o.OwnerType, &o.OwnerID, &o.AllianceID,
+                &o.GarrisonPower, &o.OccupyTime, &o.DefenseWalls,
+                &o.ResourceStored, &o.UpdatedAt, &o.CreatedAt)
+        if err != nil {
+                if errors.Is(err, sql.ErrNoRows) {
+                        return nil, ErrOccupationNotFound
+                }
+                return nil, fmt.Errorf("get occupation: %w", err)
+        }
+        return o, nil
 }
 
 // UpsertOccupation 创建或更新城池占领
 func (d *MapDAO) UpsertOccupation(ctx context.Context, o *model.CityOccupation) error {
-	_, err := d.db.ExecContext(ctx,
-		`INSERT INTO city_occupations
-			(city_id, owner_type, owner_id, alliance_id, garrison_power,
-			 occupy_time, defense_walls, updated_at, created_at)
-		 VALUES (?, ?, ?, ?, ?, NOW(), ?, NOW(), NOW())
-		 ON DUPLICATE KEY UPDATE
-		   owner_type = VALUES(owner_type),
-		   owner_id = VALUES(owner_id),
-		   alliance_id = VALUES(alliance_id),
-		   garrison_power = VALUES(garrison_power),
-		   occupy_time = VALUES(occupy_time),
-		   defense_walls = VALUES(defense_walls),
-		   updated_at = NOW()`,
-		o.CityID, o.OwnerType, o.OwnerID, o.AllianceID, o.GarrisonPower, o.DefenseWalls)
-	if err != nil {
-		return fmt.Errorf("upsert occupation: %w", err)
-	}
-	return nil
+        _, err := d.db.ExecContext(ctx,
+                `INSERT INTO city_occupations
+                        (city_id, owner_type, owner_id, alliance_id, garrison_power,
+                         occupy_time, defense_walls, updated_at, created_at)
+                 VALUES (?, ?, ?, ?, ?, NOW(), ?, NOW(), NOW())
+                 ON DUPLICATE KEY UPDATE
+                   owner_type = VALUES(owner_type),
+                   owner_id = VALUES(owner_id),
+                   alliance_id = VALUES(alliance_id),
+                   garrison_power = VALUES(garrison_power),
+                   occupy_time = VALUES(occupy_time),
+                   defense_walls = VALUES(defense_walls),
+                   updated_at = NOW()`,
+                o.CityID, o.OwnerType, o.OwnerID, o.AllianceID, o.GarrisonPower, o.DefenseWalls)
+        if err != nil {
+                return fmt.Errorf("upsert occupation: %w", err)
+        }
+        return nil
 }
 
 // ListOccupationsByOwner 获取玩家/联盟占领的城池
 func (d *MapDAO) ListOccupationsByOwner(ctx context.Context, ownerType int8, ownerID int64) ([]*model.CityOccupation, error) {
-	rows, err := d.db.QueryContext(ctx,
-		`SELECT id, city_id, owner_type, owner_id, alliance_id,
-			garrison_power, occupy_time, defense_walls,
-			resource_stored, updated_at, created_at
-		 FROM city_occupations
-		 WHERE owner_type = ? AND owner_id = ? ORDER BY occupy_time ASC`, ownerType, ownerID)
-	if err != nil {
-		return nil, fmt.Errorf("list occupations: %w", err)
-	}
-	defer rows.Close()
+        rows, err := d.db.QueryContext(ctx,
+                `SELECT id, city_id, owner_type, owner_id, alliance_id,
+                        garrison_power, occupy_time, defense_walls,
+                        resource_stored, updated_at, created_at
+                 FROM city_occupations
+                 WHERE owner_type = ? AND owner_id = ? ORDER BY occupy_time ASC`, ownerType, ownerID)
+        if err != nil {
+                return nil, fmt.Errorf("list occupations: %w", err)
+        }
+        defer rows.Close()
 
-	occupations := make([]*model.CityOccupation, 0)
-	for rows.Next() {
-		o := &model.CityOccupation{}
-		err := rows.Scan(&o.ID, &o.CityID, &o.OwnerType, &o.OwnerID, &o.AllianceID,
-			&o.GarrisonPower, &o.OccupyTime, &o.DefenseWalls,
-			&o.ResourceStored, &o.UpdatedAt, &o.CreatedAt)
-		if err != nil {
-			return nil, fmt.Errorf("scan occupation: %w", err)
-		}
-		occupations = append(occupations, o)
-	}
-	return occupations, nil
+        occupations := make([]*model.CityOccupation, 0)
+        for rows.Next() {
+                o := &model.CityOccupation{}
+                err := rows.Scan(&o.ID, &o.CityID, &o.OwnerType, &o.OwnerID, &o.AllianceID,
+                        &o.GarrisonPower, &o.OccupyTime, &o.DefenseWalls,
+                        &o.ResourceStored, &o.UpdatedAt, &o.CreatedAt)
+                if err != nil {
+                        return nil, fmt.Errorf("scan occupation: %w", err)
+                }
+                occupations = append(occupations, o)
+        }
+        return occupations, nil
 }
 
 // UpdateGarrison 更新城池驻军
 func (d *MapDAO) UpdateGarrison(ctx context.Context, cityID int64, garrisonPower int) error {
-	_, err := d.db.ExecContext(ctx,
-		`UPDATE city_occupations SET garrison_power = ?, updated_at = NOW()
-		 WHERE city_id = ?`, garrisonPower, cityID)
-	if err != nil {
-		return fmt.Errorf("update garrison: %w", err)
-	}
-	return nil
+        _, err := d.db.ExecContext(ctx,
+                `UPDATE city_occupations SET garrison_power = ?, updated_at = NOW()
+                 WHERE city_id = ?`, garrisonPower, cityID)
+        if err != nil {
+                return fmt.Errorf("update garrison: %w", err)
+        }
+        return nil
 }
 
 // ================================================================
@@ -286,173 +286,173 @@ func (d *MapDAO) UpdateGarrison(ctx context.Context, cityID int64, garrisonPower
 
 // CreateMarch 创建行军令
 func (d *MapDAO) CreateMarch(ctx context.Context, m *model.MarchOrder) (int64, error) {
-	pathJSON, _ := json.Marshal(m.Path)
-	_, err := d.db.ExecContext(ctx,
-		`INSERT INTO march_orders
-			(march_id, user_id, alliance_id, source_city_id, target_city_id,
-			 march_type, army_power, army_info, path, total_distance,
-			 march_speed, status, start_time, arrive_time, progress, consume_food, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, 0, ?, NOW())`,
-		m.MarchID, m.UserID, m.AllianceID, m.SourceCityID, m.TargetCityID,
-		m.MarchType, m.ArmyPower, m.ArmyInfo, pathJSON,
-		m.TotalDistance, m.MarchSpeed, m.Status,
-		m.ArriveTime, m.ConsumeFood)
-	if err != nil {
-		return 0, fmt.Errorf("create march: %w", err)
-	}
-	return d.getLastInsertID(ctx)
+        pathJSON, _ := json.Marshal(m.Path)
+        _, err := d.db.ExecContext(ctx,
+                `INSERT INTO march_orders
+                        (march_id, user_id, alliance_id, source_city_id, target_city_id,
+                         march_type, army_power, army_info, path, total_distance,
+                         march_speed, status, start_time, arrive_time, progress, consume_food, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, 0, ?, NOW())`,
+                m.MarchID, m.UserID, m.AllianceID, m.SourceCityID, m.TargetCityID,
+                m.MarchType, m.ArmyPower, m.ArmyInfo, pathJSON,
+                m.TotalDistance, m.MarchSpeed, m.Status,
+                m.ArriveTime, m.ConsumeFood)
+        if err != nil {
+                return 0, fmt.Errorf("create march: %w", err)
+        }
+        return d.getLastInsertID(ctx)
 }
 
 func (d *MapDAO) getLastInsertID(ctx context.Context) (int64, error) {
-	var id int64
-	err := d.db.QueryRowContext(ctx, "SELECT LAST_INSERT_ID()").Scan(&id)
-	return id, err
+        var id int64
+        err := d.db.QueryRowContext(ctx, "SELECT LAST_INSERT_ID()").Scan(&id)
+        return id, err
 }
 
 // GetMarchByMarchID 根据UUID获取行军令
 func (d *MapDAO) GetMarchByMarchID(ctx context.Context, marchID string) (*model.MarchOrder, error) {
-	m := &model.MarchOrder{}
-	var pathJSON []byte
-	err := d.db.QueryRowContext(ctx,
-		`SELECT id, march_id, user_id, alliance_id, source_city_id, target_city_id,
-			march_type, army_power, army_info, path, total_distance,
-			march_speed, status, start_time, arrive_time, actual_arrive,
-			progress, battle_result, consume_food, created_at
-		 FROM march_orders WHERE march_id = ?`, marchID,
-	).Scan(&m.ID, &m.MarchID, &m.UserID, &m.AllianceID,
-		&m.SourceCityID, &m.TargetCityID, &m.MarchType, &m.ArmyPower,
-		&m.ArmyInfo, &pathJSON, &m.TotalDistance, &m.MarchSpeed,
-		&m.Status, &m.StartTime, &m.ArriveTime, &m.ActualArrive,
-		&m.Progress, &m.BattleResult, &m.ConsumeFood, &m.CreatedAt)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrMarchNotFound
-		}
-		return nil, fmt.Errorf("get march: %w", err)
-	}
-	_ = json.Unmarshal(pathJSON, &m.Path)
-	return m, nil
+        m := &model.MarchOrder{}
+        var pathJSON []byte
+        err := d.db.QueryRowContext(ctx,
+                `SELECT id, march_id, user_id, alliance_id, source_city_id, target_city_id,
+                        march_type, army_power, army_info, path, total_distance,
+                        march_speed, status, start_time, arrive_time, actual_arrive,
+                        progress, battle_result, consume_food, created_at
+                 FROM march_orders WHERE march_id = ?`, marchID,
+        ).Scan(&m.ID, &m.MarchID, &m.UserID, &m.AllianceID,
+                &m.SourceCityID, &m.TargetCityID, &m.MarchType, &m.ArmyPower,
+                &m.ArmyInfo, &pathJSON, &m.TotalDistance, &m.MarchSpeed,
+                &m.Status, &m.StartTime, &m.ArriveTime, &m.ActualArrive,
+                &m.Progress, &m.BattleResult, &m.ConsumeFood, &m.CreatedAt)
+        if err != nil {
+                if errors.Is(err, sql.ErrNoRows) {
+                        return nil, ErrMarchNotFound
+                }
+                return nil, fmt.Errorf("get march: %w", err)
+        }
+        _ = json.Unmarshal(pathJSON, &m.Path)
+        return m, nil
 }
 
 // UpdateMarchStatus 更新行军状态
 func (d *MapDAO) UpdateMarchStatus(ctx context.Context, marchID string, status int8, battleResult json.RawMessage) error {
-	if battleResult != nil {
-		_, err := d.db.ExecContext(ctx,
-			`UPDATE march_orders SET status = ?, actual_arrive = NOW(),
-			 battle_result = ?, progress = 100
-			 WHERE march_id = ? AND status IN (1, 3)`,
-			status, battleResult, marchID)
-		if err != nil {
-			return fmt.Errorf("update march status: %w", err)
-		}
-	} else {
-		_, err := d.db.ExecContext(ctx,
-			`UPDATE march_orders SET status = ?, actual_arrive = NOW(), progress = 100
-			 WHERE march_id = ? AND status IN (1, 3)`, status, marchID)
-		if err != nil {
-			return fmt.Errorf("update march status: %w", err)
-		}
-	}
-	return nil
+        if battleResult != nil {
+                _, err := d.db.ExecContext(ctx,
+                        `UPDATE march_orders SET status = ?, actual_arrive = NOW(),
+                         battle_result = ?, progress = 100
+                         WHERE march_id = ? AND status IN (1, 3)`,
+                        status, battleResult, marchID)
+                if err != nil {
+                        return fmt.Errorf("update march status: %w", err)
+                }
+        } else {
+                _, err := d.db.ExecContext(ctx,
+                        `UPDATE march_orders SET status = ?, actual_arrive = NOW(), progress = 100
+                         WHERE march_id = ? AND status IN (1, 3)`, status, marchID)
+                if err != nil {
+                        return fmt.Errorf("update march status: %w", err)
+                }
+        }
+        return nil
 }
 
 // UpdateMarchProgress 更新行军进度
 func (d *MapDAO) UpdateMarchProgress(ctx context.Context, marchID string, progress int) error {
-	_, err := d.db.ExecContext(ctx,
-		`UPDATE march_orders SET progress = ? WHERE march_id = ? AND status = 1`,
-		progress, marchID)
-	if err != nil {
-		return fmt.Errorf("update march progress: %w", err)
-	}
-	return nil
+        _, err := d.db.ExecContext(ctx,
+                `UPDATE march_orders SET progress = ? WHERE march_id = ? AND status = 1`,
+                progress, marchID)
+        if err != nil {
+                return fmt.Errorf("update march progress: %w", err)
+        }
+        return nil
 }
 
 // ListActiveMarches 获取所有活跃行军（行军中/战斗中）
 func (d *MapDAO) ListActiveMarches(ctx context.Context) ([]*model.MarchOrder, error) {
-	rows, err := d.db.QueryContext(ctx,
-		`SELECT id, march_id, user_id, alliance_id, source_city_id, target_city_id,
-			march_type, army_power, army_info, path, total_distance,
-			march_speed, status, start_time, arrive_time, actual_arrive,
-			progress, battle_result, consume_food, created_at
-		 FROM march_orders WHERE status IN (1, 3) ORDER BY arrive_time ASC`)
-	if err != nil {
-		return nil, fmt.Errorf("list active marches: %w", err)
-	}
-	defer rows.Close()
+        rows, err := d.db.QueryContext(ctx,
+                `SELECT id, march_id, user_id, alliance_id, source_city_id, target_city_id,
+                        march_type, army_power, army_info, path, total_distance,
+                        march_speed, status, start_time, arrive_time, actual_arrive,
+                        progress, battle_result, consume_food, created_at
+                 FROM march_orders WHERE status IN (1, 3) ORDER BY arrive_time ASC`)
+        if err != nil {
+                return nil, fmt.Errorf("list active marches: %w", err)
+        }
+        defer rows.Close()
 
-	return d.scanMarchRows(rows)
+        return d.scanMarchRows(rows)
 }
 
 // ListUserMarches 获取用户行军列表
 func (d *MapDAO) ListUserMarches(ctx context.Context, userID int64, status int8, limit int) ([]*model.MarchOrder, error) {
-	query := `SELECT id, march_id, user_id, alliance_id, source_city_id, target_city_id,
-			march_type, army_power, army_info, path, total_distance,
-			march_speed, status, start_time, arrive_time, actual_arrive,
-			progress, battle_result, consume_food, created_at
-		 FROM march_orders WHERE user_id = ?`
-	args := []interface{}{userID}
+        query := `SELECT id, march_id, user_id, alliance_id, source_city_id, target_city_id,
+                        march_type, army_power, army_info, path, total_distance,
+                        march_speed, status, start_time, arrive_time, actual_arrive,
+                        progress, battle_result, consume_food, created_at
+                 FROM march_orders WHERE user_id = ?`
+        args := []interface{}{userID}
 
-	if status > 0 {
-		query += " AND status = ?"
-		args = append(args, status)
-	}
-	query += " ORDER BY created_at DESC LIMIT ?"
-	args = append(args, limit)
+        if status > 0 {
+                query += " AND status = ?"
+                args = append(args, status)
+        }
+        query += " ORDER BY created_at DESC LIMIT ?"
+        args = append(args, limit)
 
-	rows, err := d.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("list user marches: %w", err)
-	}
-	defer rows.Close()
+        rows, err := d.db.QueryContext(ctx, query, args...)
+        if err != nil {
+                return nil, fmt.Errorf("list user marches: %w", err)
+        }
+        defer rows.Close()
 
-	return d.scanMarchRows(rows)
+        return d.scanMarchRows(rows)
 }
 
 // CountUserActiveMarches 统计用户活跃行军数
 func (d *MapDAO) CountUserActiveMarches(ctx context.Context, userID int64) (int, error) {
-	var count int
-	err := d.db.QueryRowContext(ctx,
-		`SELECT COUNT(1) FROM march_orders WHERE user_id = ? AND status IN (1, 3)`, userID).Scan(&count)
-	if err != nil {
-		return 0, fmt.Errorf("count active marches: %w", err)
-	}
-	return count, nil
+        var count int
+        err := d.db.QueryRowContext(ctx,
+                `SELECT COUNT(1) FROM march_orders WHERE user_id = ? AND status IN (1, 3)`, userID).Scan(&count)
+        if err != nil {
+                return 0, fmt.Errorf("count active marches: %w", err)
+        }
+        return count, nil
 }
 
 // ListArrivedMarches 获取已到达的行军（按到达时间排序）
 func (d *MapDAO) ListArrivedMarches(ctx context.Context, limit int) ([]*model.MarchOrder, error) {
-	rows, err := d.db.QueryContext(ctx,
-		`SELECT id, march_id, user_id, alliance_id, source_city_id, target_city_id,
-			march_type, army_power, army_info, path, total_distance,
-			march_speed, status, start_time, arrive_time, actual_arrive,
-			progress, battle_result, consume_food, created_at
-		 FROM march_orders WHERE status = 1 AND arrive_time <= NOW()
-		 ORDER BY arrive_time ASC LIMIT ?`, limit)
-	if err != nil {
-		return nil, fmt.Errorf("list arrived marches: %w", err)
-	}
-	defer rows.Close()
+        rows, err := d.db.QueryContext(ctx,
+                `SELECT id, march_id, user_id, alliance_id, source_city_id, target_city_id,
+                        march_type, army_power, army_info, path, total_distance,
+                        march_speed, status, start_time, arrive_time, actual_arrive,
+                        progress, battle_result, consume_food, created_at
+                 FROM march_orders WHERE status = 1 AND arrive_time <= NOW()
+                 ORDER BY arrive_time ASC LIMIT ?`, limit)
+        if err != nil {
+                return nil, fmt.Errorf("list arrived marches: %w", err)
+        }
+        defer rows.Close()
 
-	return d.scanMarchRows(rows)
+        return d.scanMarchRows(rows)
 }
 
 func (d *MapDAO) scanMarchRows(rows *sql.Rows) ([]*model.MarchOrder, error) {
-	marches := make([]*model.MarchOrder, 0)
-	for rows.Next() {
-		m := &model.MarchOrder{}
-		var pathJSON []byte
-		err := rows.Scan(&m.ID, &m.MarchID, &m.UserID, &m.AllianceID,
-			&m.SourceCityID, &m.TargetCityID, &m.MarchType, &m.ArmyPower,
-			&m.ArmyInfo, &pathJSON, &m.TotalDistance, &m.MarchSpeed,
-			&m.Status, &m.StartTime, &m.ArriveTime, &m.ActualArrive,
-			&m.Progress, &m.BattleResult, &m.ConsumeFood, &m.CreatedAt)
-		if err != nil {
-			return nil, fmt.Errorf("scan march: %w", err)
-		}
-		_ = json.Unmarshal(pathJSON, &m.Path)
-		marches = append(marches, m)
-	}
-	return marches, nil
+        marches := make([]*model.MarchOrder, 0)
+        for rows.Next() {
+                m := &model.MarchOrder{}
+                var pathJSON []byte
+                err := rows.Scan(&m.ID, &m.MarchID, &m.UserID, &m.AllianceID,
+                        &m.SourceCityID, &m.TargetCityID, &m.MarchType, &m.ArmyPower,
+                        &m.ArmyInfo, &pathJSON, &m.TotalDistance, &m.MarchSpeed,
+                        &m.Status, &m.StartTime, &m.ArriveTime, &m.ActualArrive,
+                        &m.Progress, &m.BattleResult, &m.ConsumeFood, &m.CreatedAt)
+                if err != nil {
+                        return nil, fmt.Errorf("scan march: %w", err)
+                }
+                _ = json.Unmarshal(pathJSON, &m.Path)
+                marches = append(marches, m)
+        }
+        return marches, nil
 }
 
 // ================================================================
@@ -461,49 +461,49 @@ func (d *MapDAO) scanMarchRows(rows *sql.Rows) ([]*model.MarchOrder, error) {
 
 // GetAllianceTerritory 获取联盟领土
 func (d *MapDAO) GetAllianceTerritory(ctx context.Context, allianceID int64) (*model.AllianceTerritory, error) {
-	t := &model.AllianceTerritory{}
-	err := d.db.QueryRowContext(ctx,
-		`SELECT id, alliance_id, city_count, capital_count,
-			total_food, total_wood, total_iron, total_gold,
-			territory_level, buff_config, updated_at, created_at
-		 FROM alliance_territories WHERE alliance_id = ?`, allianceID,
-	).Scan(&t.ID, &t.AllianceID, &t.CityCount, &t.CapitalCount,
-		&t.TotalFood, &t.TotalWood, &t.TotalIron, &t.TotalGold,
-		&t.TerritoryLevel, &t.BuffConfig, &t.UpdatedAt, &t.CreatedAt)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrAllianceNotFound
-		}
-		return nil, fmt.Errorf("get alliance territory: %w", err)
-	}
-	return t, nil
+        t := &model.AllianceTerritory{}
+        err := d.db.QueryRowContext(ctx,
+                `SELECT id, alliance_id, city_count, capital_count,
+                        total_food, total_wood, total_iron, total_gold,
+                        territory_level, buff_config, updated_at, created_at
+                 FROM alliance_territories WHERE alliance_id = ?`, allianceID,
+        ).Scan(&t.ID, &t.AllianceID, &t.CityCount, &t.CapitalCount,
+                &t.TotalFood, &t.TotalWood, &t.TotalIron, &t.TotalGold,
+                &t.TerritoryLevel, &t.BuffConfig, &t.UpdatedAt, &t.CreatedAt)
+        if err != nil {
+                if errors.Is(err, sql.ErrNoRows) {
+                        return nil, ErrAllianceNotFound
+                }
+                return nil, fmt.Errorf("get alliance territory: %w", err)
+        }
+        return t, nil
 }
 
 // UpsertAllianceTerritory 更新联盟领土
 func (d *MapDAO) UpsertAllianceTerritory(ctx context.Context, t *model.AllianceTerritory) error {
-	_, err := d.db.ExecContext(ctx,
-		`INSERT INTO alliance_territories
-			(alliance_id, city_count, capital_count,
-			 total_food, total_wood, total_iron, total_gold,
-			 territory_level, buff_config, updated_at, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
-		 ON DUPLICATE KEY UPDATE
-		   city_count = VALUES(city_count),
-		   capital_count = VALUES(capital_count),
-		   total_food = VALUES(total_food),
-		   total_wood = VALUES(total_wood),
-		   total_iron = VALUES(total_iron),
-		   total_gold = VALUES(total_gold),
-		   territory_level = VALUES(territory_level),
-		   buff_config = VALUES(buff_config),
-		   updated_at = NOW()`,
-		t.AllianceID, t.CityCount, t.CapitalCount,
-		t.TotalFood, t.TotalWood, t.TotalIron, t.TotalGold,
-		t.TerritoryLevel, t.BuffConfig)
-	if err != nil {
-		return fmt.Errorf("upsert alliance territory: %w", err)
-	}
-	return nil
+        _, err := d.db.ExecContext(ctx,
+                `INSERT INTO alliance_territories
+                        (alliance_id, city_count, capital_count,
+                         total_food, total_wood, total_iron, total_gold,
+                         territory_level, buff_config, updated_at, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+                 ON DUPLICATE KEY UPDATE
+                   city_count = VALUES(city_count),
+                   capital_count = VALUES(capital_count),
+                   total_food = VALUES(total_food),
+                   total_wood = VALUES(total_wood),
+                   total_iron = VALUES(total_iron),
+                   total_gold = VALUES(total_gold),
+                   territory_level = VALUES(territory_level),
+                   buff_config = VALUES(buff_config),
+                   updated_at = NOW()`,
+                t.AllianceID, t.CityCount, t.CapitalCount,
+                t.TotalFood, t.TotalWood, t.TotalIron, t.TotalGold,
+                t.TerritoryLevel, t.BuffConfig)
+        if err != nil {
+                return fmt.Errorf("upsert alliance territory: %w", err)
+        }
+        return nil
 }
 
 // ================================================================
@@ -512,46 +512,46 @@ func (d *MapDAO) UpsertAllianceTerritory(ctx context.Context, t *model.AllianceT
 
 // CreateBattleLog 创建战斗日志
 func (d *MapDAO) CreateBattleLog(ctx context.Context, log *model.CityBattleLog) error {
-	_, err := d.db.ExecContext(ctx,
-		`INSERT INTO city_battle_logs
-			(city_id, march_id, attacker_id, attacker_name,
-			 defender_id, defender_name, attacker_power, defender_power,
-			 attacker_win, result_detail, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-		log.CityID, log.MarchID, log.AttackerID, log.AttackerName,
-		log.DefenderID, log.DefenderName, log.AttackerPower, log.DefenderPower,
-		log.AttackerWin, log.ResultDetail)
-	if err != nil {
-		return fmt.Errorf("create battle log: %w", err)
-	}
-	return nil
+        _, err := d.db.ExecContext(ctx,
+                `INSERT INTO city_battle_logs
+                        (city_id, march_id, attacker_id, attacker_name,
+                         defender_id, defender_name, attacker_power, defender_power,
+                         attacker_win, result_detail, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+                log.CityID, log.MarchID, log.AttackerID, log.AttackerName,
+                log.DefenderID, log.DefenderName, log.AttackerPower, log.DefenderPower,
+                log.AttackerWin, log.ResultDetail)
+        if err != nil {
+                return fmt.Errorf("create battle log: %w", err)
+        }
+        return nil
 }
 
 // ListCityBattleLogs 获取城池战斗日志
 func (d *MapDAO) ListCityBattleLogs(ctx context.Context, cityID int64, limit int) ([]*model.CityBattleLog, error) {
-	rows, err := d.db.QueryContext(ctx,
-		`SELECT id, city_id, march_id, attacker_id, attacker_name,
-			defender_id, defender_name, attacker_power, defender_power,
-			attacker_win, result_detail, created_at
-		 FROM city_battle_logs WHERE city_id = ?
-		 ORDER BY created_at DESC LIMIT ?`, cityID, limit)
-	if err != nil {
-		return nil, fmt.Errorf("list battle logs: %w", err)
-	}
-	defer rows.Close()
+        rows, err := d.db.QueryContext(ctx,
+                `SELECT id, city_id, march_id, attacker_id, attacker_name,
+                        defender_id, defender_name, attacker_power, defender_power,
+                        attacker_win, result_detail, created_at
+                 FROM city_battle_logs WHERE city_id = ?
+                 ORDER BY created_at DESC LIMIT ?`, cityID, limit)
+        if err != nil {
+                return nil, fmt.Errorf("list battle logs: %w", err)
+        }
+        defer rows.Close()
 
-	logs := make([]*model.CityBattleLog, 0)
-	for rows.Next() {
-		l := &model.CityBattleLog{}
-		err := rows.Scan(&l.ID, &l.CityID, &l.MarchID, &l.AttackerID, &l.AttackerName,
-			&l.DefenderID, &l.DefenderName, &l.AttackerPower, &l.DefenderPower,
-			&l.AttackerWin, &l.ResultDetail, &l.CreatedAt)
-		if err != nil {
-			return nil, fmt.Errorf("scan battle log: %w", err)
-		}
-		logs = append(logs, l)
-	}
-	return logs, nil
+        logs := make([]*model.CityBattleLog, 0)
+        for rows.Next() {
+                l := &model.CityBattleLog{}
+                err := rows.Scan(&l.ID, &l.CityID, &l.MarchID, &l.AttackerID, &l.AttackerName,
+                        &l.DefenderID, &l.DefenderName, &l.AttackerPower, &l.DefenderPower,
+                        &l.AttackerWin, &l.ResultDetail, &l.CreatedAt)
+                if err != nil {
+                        return nil, fmt.Errorf("scan battle log: %w", err)
+                }
+                logs = append(logs, l)
+        }
+        return logs, nil
 }
 
 // ================================================================
@@ -560,13 +560,13 @@ func (d *MapDAO) ListCityBattleLogs(ctx context.Context, cityID int64, limit int
 
 // CountOccupations 统计各类型城池数量
 func (d *MapDAO) CountOccupations(ctx context.Context) (neutral, player, alliance int, err error) {
-	err = d.db.QueryRowContext(ctx,
-		`SELECT
-		   COALESCE(SUM(CASE WHEN owner_type = 0 THEN 1 ELSE 0 END), 0),
-		   COALESCE(SUM(CASE WHEN owner_type = 1 THEN 1 ELSE 0 END), 0),
-		   COALESCE(SUM(CASE WHEN owner_type = 2 THEN 1 ELSE 0 END), 0)
-		 FROM city_occupations`).Scan(&neutral, &player, &alliance)
-	return
+        err = d.db.QueryRowContext(ctx,
+                `SELECT
+                   COALESCE(SUM(CASE WHEN owner_type = 0 THEN 1 ELSE 0 END), 0),
+                   COALESCE(SUM(CASE WHEN owner_type = 1 THEN 1 ELSE 0 END), 0),
+                   COALESCE(SUM(CASE WHEN owner_type = 2 THEN 1 ELSE 0 END), 0)
+                 FROM city_occupations`).Scan(&neutral, &player, &alliance)
+        return
 }
 
 // ================================================================
@@ -575,111 +575,111 @@ func (d *MapDAO) CountOccupations(ctx context.Context) (neutral, player, allianc
 
 // CreateCheckpoint 创建或替换检查点
 func (d *MapDAO) CreateCheckpoint(ctx context.Context, cp *model.MarchCheckpoint) error {
-	_, err := d.db.ExecContext(ctx,
-		`INSERT INTO march_checkpoints
-			(march_id, worker_id, progress, status, heartbeat_at, created_at)
-		 VALUES (?, ?, ?, ?, NOW(), NOW())
-		 ON DUPLICATE KEY UPDATE
-		   worker_id = VALUES(worker_id),
-		   progress = VALUES(progress),
-		   status = VALUES(status),
-		   heartbeat_at = NOW()`,
-		cp.MarchID, cp.WorkerID, cp.Progress, cp.Status)
-	if err != nil {
-		return fmt.Errorf("create checkpoint: %w", err)
-	}
-	return nil
+        _, err := d.db.ExecContext(ctx,
+                `INSERT INTO march_checkpoints
+                        (march_id, worker_id, progress, status, heartbeat_at, created_at)
+                 VALUES (?, ?, ?, ?, NOW(), NOW())
+                 ON DUPLICATE KEY UPDATE
+                   worker_id = VALUES(worker_id),
+                   progress = VALUES(progress),
+                   status = VALUES(status),
+                   heartbeat_at = NOW()`,
+                cp.MarchID, cp.WorkerID, cp.Progress, cp.Status)
+        if err != nil {
+                return fmt.Errorf("create checkpoint: %w", err)
+        }
+        return nil
 }
 
 // UpdateCheckpointHeartbeat 更新检查点心跳
 func (d *MapDAO) UpdateCheckpointHeartbeat(ctx context.Context, marchID, workerID string) error {
-	_, err := d.db.ExecContext(ctx,
-		`UPDATE march_checkpoints
-		 SET heartbeat_at = NOW(), progress = progress
-		 WHERE march_id = ? AND worker_id = ? AND status = ?`,
-		marchID, workerID, model.CheckpointProcessing)
-	if err != nil {
-		return fmt.Errorf("update checkpoint heartbeat: %w", err)
-	}
-	return nil
+        _, err := d.db.ExecContext(ctx,
+                `UPDATE march_checkpoints
+                 SET heartbeat_at = NOW(), progress = progress
+                 WHERE march_id = ? AND worker_id = ? AND status = ?`,
+                marchID, workerID, model.CheckpointProcessing)
+        if err != nil {
+                return fmt.Errorf("update checkpoint heartbeat: %w", err)
+        }
+        return nil
 }
 
 // GetCheckpoint 获取检查点
 func (d *MapDAO) GetCheckpoint(ctx context.Context, marchID string) (*model.MarchCheckpoint, error) {
-	cp := &model.MarchCheckpoint{}
-	err := d.db.QueryRowContext(ctx,
-		`SELECT march_id, worker_id, progress, status, heartbeat_at, updated_at, created_at
-		 FROM march_checkpoints WHERE march_id = ?`, marchID,
-	).Scan(&cp.MarchID, &cp.WorkerID, &cp.Progress, &cp.Status,
-		&cp.HeartbeatAt, &cp.UpdatedAt, &cp.CreatedAt)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("get checkpoint: %w", err)
-	}
-	return cp, nil
+        cp := &model.MarchCheckpoint{}
+        err := d.db.QueryRowContext(ctx,
+                `SELECT march_id, worker_id, progress, status, heartbeat_at, updated_at, created_at
+                 FROM march_checkpoints WHERE march_id = ?`, marchID,
+        ).Scan(&cp.MarchID, &cp.WorkerID, &cp.Progress, &cp.Status,
+                &cp.HeartbeatAt, &cp.UpdatedAt, &cp.CreatedAt)
+        if err != nil {
+                if errors.Is(err, sql.ErrNoRows) {
+                        return nil, nil
+                }
+                return nil, fmt.Errorf("get checkpoint: %w", err)
+        }
+        return cp, nil
 }
 
 // ListInterruptedCheckpoints 列出中断的检查点（状态=3 且 心跳超过30秒）
 func (d *MapDAO) ListInterruptedCheckpoints(ctx context.Context, limit int) ([]*model.MarchCheckpoint, error) {
-	rows, err := d.db.QueryContext(ctx,
-		`SELECT march_id, worker_id, progress, status, heartbeat_at, updated_at, created_at
-		 FROM march_checkpoints
-		 WHERE status = ? AND heartbeat_at < DATE_SUB(NOW(), INTERVAL 30 SECOND)
-		 ORDER BY heartbeat_at ASC LIMIT ?`,
-		model.CheckpointInterrupted, limit)
-	if err != nil {
-		return nil, fmt.Errorf("list interrupted checkpoints: %w", err)
-	}
-	defer rows.Close()
+        rows, err := d.db.QueryContext(ctx,
+                `SELECT march_id, worker_id, progress, status, heartbeat_at, updated_at, created_at
+                 FROM march_checkpoints
+                 WHERE status = ? AND heartbeat_at < DATE_SUB(NOW(), INTERVAL 30 SECOND)
+                 ORDER BY heartbeat_at ASC LIMIT ?`,
+                model.CheckpointInterrupted, limit)
+        if err != nil {
+                return nil, fmt.Errorf("list interrupted checkpoints: %w", err)
+        }
+        defer rows.Close()
 
-	result := make([]*model.MarchCheckpoint, 0)
-	for rows.Next() {
-		cp := &model.MarchCheckpoint{}
-		err := rows.Scan(&cp.MarchID, &cp.WorkerID, &cp.Progress, &cp.Status,
-			&cp.HeartbeatAt, &cp.UpdatedAt, &cp.CreatedAt)
-		if err != nil {
-			return nil, fmt.Errorf("scan checkpoint: %w", err)
-		}
-		result = append(result, cp)
-	}
-	return result, nil
+        result := make([]*model.MarchCheckpoint, 0)
+        for rows.Next() {
+                cp := &model.MarchCheckpoint{}
+                err := rows.Scan(&cp.MarchID, &cp.WorkerID, &cp.Progress, &cp.Status,
+                        &cp.HeartbeatAt, &cp.UpdatedAt, &cp.CreatedAt)
+                if err != nil {
+                        return nil, fmt.Errorf("scan checkpoint: %w", err)
+                }
+                result = append(result, cp)
+        }
+        return result, nil
 }
 
 // MarkCheckpointCompleted 标记检查点为已完成
 func (d *MapDAO) MarkCheckpointCompleted(ctx context.Context, marchID string) error {
-	_, err := d.db.ExecContext(ctx,
-		`UPDATE march_checkpoints SET status = ?, heartbeat_at = NOW()
-		 WHERE march_id = ?`, model.CheckpointCompleted, marchID)
-	if err != nil {
-		return fmt.Errorf("mark checkpoint completed: %w", err)
-	}
-	return nil
+        _, err := d.db.ExecContext(ctx,
+                `UPDATE march_checkpoints SET status = ?, heartbeat_at = NOW()
+                 WHERE march_id = ?`, model.CheckpointCompleted, marchID)
+        if err != nil {
+                return fmt.Errorf("mark checkpoint completed: %w", err)
+        }
+        return nil
 }
 
 // MarkCheckpointInterrupted 标记检查点为异常中断
 func (d *MapDAO) MarkCheckpointInterrupted(ctx context.Context, marchID string) error {
-	_, err := d.db.ExecContext(ctx,
-		`UPDATE march_checkpoints SET status = ?
-		 WHERE march_id = ? AND status = ?`,
-		model.CheckpointInterrupted, marchID, model.CheckpointProcessing)
-	if err != nil {
-		return fmt.Errorf("mark checkpoint interrupted: %w", err)
-	}
-	return nil
+        _, err := d.db.ExecContext(ctx,
+                `UPDATE march_checkpoints SET status = ?
+                 WHERE march_id = ? AND status = ?`,
+                model.CheckpointInterrupted, marchID, model.CheckpointProcessing)
+        if err != nil {
+                return fmt.Errorf("mark checkpoint interrupted: %w", err)
+        }
+        return nil
 }
 
 // CleanupCompletedCheckpoints 清理已完成的检查点
 func (d *MapDAO) CleanupCompletedCheckpoints(ctx context.Context, beforeTime time.Time) (int64, error) {
-	result, err := d.db.ExecContext(ctx,
-		`DELETE FROM march_checkpoints
-		 WHERE status = ? AND updated_at < ?`,
-		model.CheckpointCompleted, beforeTime)
-	if err != nil {
-		return 0, fmt.Errorf("cleanup completed checkpoints: %w", err)
-	}
-	return result.RowsAffected()
+        result, err := d.db.ExecContext(ctx,
+                `DELETE FROM march_checkpoints
+                 WHERE status = ? AND updated_at < ?`,
+                model.CheckpointCompleted, beforeTime)
+        if err != nil {
+                return 0, fmt.Errorf("cleanup completed checkpoints: %w", err)
+        }
+        return result.RowsAffected(), nil
 }
 
 // ================================================================
@@ -688,92 +688,92 @@ func (d *MapDAO) CleanupCompletedCheckpoints(ctx context.Context, beforeTime tim
 
 // TryAcquireCityLock 尝试获取城池占领锁（INSERT IGNORE）
 func (d *MapDAO) TryAcquireCityLock(ctx context.Context, cityID int64, marchID string, expireSecs int, ownerBefore json.RawMessage) (bool, error) {
-	expireAt := time.Now().Add(time.Duration(expireSecs) * time.Second)
-	// 先清理已过期或已释放的锁
-	d.db.ExecContext(ctx,
-		`DELETE FROM city_occupation_locks WHERE city_id = ? AND lock_status IN (?, ?)`,
-		cityID, model.LockStatusCommitted, model.LockStatusReleased)
+        expireAt := time.Now().Add(time.Duration(expireSecs) * time.Second)
+        // 先清理已过期或已释放的锁
+        d.db.ExecContext(ctx,
+                `DELETE FROM city_occupation_locks WHERE city_id = ? AND lock_status IN (?, ?)`,
+                cityID, model.LockStatusCommitted, model.LockStatusReleased)
 
-	result, err := d.db.ExecContext(ctx,
-		`INSERT IGNORE INTO city_occupation_locks
-			(city_id, march_id, owner_before, lock_status, locked_at, expire_at, created_at)
-		 VALUES (?, ?, ?, ?, NOW(), ?, NOW())`,
-		cityID, marchID, ownerBefore, model.LockStatusLocked, expireAt)
-	if err != nil {
-		return false, fmt.Errorf("try acquire city lock: %w", err)
-	}
-	affected, _ := result.RowsAffected()
-	return affected > 0, nil
+        result, err := d.db.ExecContext(ctx,
+                `INSERT IGNORE INTO city_occupation_locks
+                        (city_id, march_id, owner_before, lock_status, locked_at, expire_at, created_at)
+                 VALUES (?, ?, ?, ?, NOW(), ?, NOW())`,
+                cityID, marchID, ownerBefore, model.LockStatusLocked, expireAt)
+        if err != nil {
+                return false, fmt.Errorf("try acquire city lock: %w", err)
+        }
+        affected, _ := result.RowsAffected()
+        return affected > 0, nil
 }
 
 // ReleaseCityLock 释放城池占领锁
 func (d *MapDAO) ReleaseCityLock(ctx context.Context, cityID int64, marchID string, commit bool) error {
-	if commit {
-		// 提交：标记为已提交，后续可以删除
-		_, err := d.db.ExecContext(ctx,
-			`UPDATE city_occupation_locks SET lock_status = ?
-			 WHERE city_id = ? AND march_id = ? AND lock_status = ?`,
-			model.LockStatusCommitted, cityID, marchID, model.LockStatusLocked)
-		if err != nil {
-			return fmt.Errorf("release city lock (commit): %w", err)
-		}
-		// 提交后删除锁记录
-		d.db.ExecContext(ctx,
-			`DELETE FROM city_occupation_locks WHERE city_id = ? AND lock_status = ?`,
-			cityID, model.LockStatusCommitted)
-	} else {
-		// 释放：标记为已释放
-		_, err := d.db.ExecContext(ctx,
-			`UPDATE city_occupation_locks SET lock_status = ?
-			 WHERE city_id = ? AND march_id = ? AND lock_status = ?`,
-			model.LockStatusReleased, cityID, marchID, model.LockStatusLocked)
-		if err != nil {
-			return fmt.Errorf("release city lock: %w", err)
-		}
-		// 释放后删除锁记录
-		d.db.ExecContext(ctx,
-			`DELETE FROM city_occupation_locks WHERE city_id = ? AND lock_status = ?`,
-			cityID, model.LockStatusReleased)
-	}
-	return nil
+        if commit {
+                // 提交：标记为已提交，后续可以删除
+                _, err := d.db.ExecContext(ctx,
+                        `UPDATE city_occupation_locks SET lock_status = ?
+                         WHERE city_id = ? AND march_id = ? AND lock_status = ?`,
+                        model.LockStatusCommitted, cityID, marchID, model.LockStatusLocked)
+                if err != nil {
+                        return fmt.Errorf("release city lock (commit): %w", err)
+                }
+                // 提交后删除锁记录
+                d.db.ExecContext(ctx,
+                        `DELETE FROM city_occupation_locks WHERE city_id = ? AND lock_status = ?`,
+                        cityID, model.LockStatusCommitted)
+        } else {
+                // 释放：标记为已释放
+                _, err := d.db.ExecContext(ctx,
+                        `UPDATE city_occupation_locks SET lock_status = ?
+                         WHERE city_id = ? AND march_id = ? AND lock_status = ?`,
+                        model.LockStatusReleased, cityID, marchID, model.LockStatusLocked)
+                if err != nil {
+                        return fmt.Errorf("release city lock: %w", err)
+                }
+                // 释放后删除锁记录
+                d.db.ExecContext(ctx,
+                        `DELETE FROM city_occupation_locks WHERE city_id = ? AND lock_status = ?`,
+                        cityID, model.LockStatusReleased)
+        }
+        return nil
 }
 
 // ListExpiredLocks 列出已过期但仍为锁定状态的锁
 func (d *MapDAO) ListExpiredLocks(ctx context.Context, limit int) ([]*model.CityOccupationLock, error) {
-	rows, err := d.db.QueryContext(ctx,
-		`SELECT id, city_id, march_id, owner_before, lock_status, locked_at, expire_at, created_at
-		 FROM city_occupation_locks
-		 WHERE lock_status = ? AND expire_at < NOW()
-		 ORDER BY expire_at ASC LIMIT ?`,
-		model.LockStatusLocked, limit)
-	if err != nil {
-		return nil, fmt.Errorf("list expired locks: %w", err)
-	}
-	defer rows.Close()
+        rows, err := d.db.QueryContext(ctx,
+                `SELECT id, city_id, march_id, owner_before, lock_status, locked_at, expire_at, created_at
+                 FROM city_occupation_locks
+                 WHERE lock_status = ? AND expire_at < NOW()
+                 ORDER BY expire_at ASC LIMIT ?`,
+                model.LockStatusLocked, limit)
+        if err != nil {
+                return nil, fmt.Errorf("list expired locks: %w", err)
+        }
+        defer rows.Close()
 
-	result := make([]*model.CityOccupationLock, 0)
-	for rows.Next() {
-		l := &model.CityOccupationLock{}
-		err := rows.Scan(&l.ID, &l.CityID, &l.MarchID, &l.OwnerBefore,
-			&l.LockStatus, &l.LockedAt, &l.ExpireAt, &l.CreatedAt)
-		if err != nil {
-			return nil, fmt.Errorf("scan expired lock: %w", err)
-		}
-		result = append(result, l)
-	}
-	return result, nil
+        result := make([]*model.CityOccupationLock, 0)
+        for rows.Next() {
+                l := &model.CityOccupationLock{}
+                err := rows.Scan(&l.ID, &l.CityID, &l.MarchID, &l.OwnerBefore,
+                        &l.LockStatus, &l.LockedAt, &l.ExpireAt, &l.CreatedAt)
+                if err != nil {
+                        return nil, fmt.Errorf("scan expired lock: %w", err)
+                }
+                result = append(result, l)
+        }
+        return result, nil
 }
 
 // ForceReleaseLock 强制释放锁（标记为超时释放）
 func (d *MapDAO) ForceReleaseLock(ctx context.Context, lockID int64) error {
-	_, err := d.db.ExecContext(ctx,
-		`UPDATE city_occupation_locks SET lock_status = ?
-		 WHERE id = ? AND lock_status = ?`,
-		model.LockStatusExpired, lockID, model.LockStatusLocked)
-	if err != nil {
-		return fmt.Errorf("force release lock: %w", err)
-	}
-	return nil
+        _, err := d.db.ExecContext(ctx,
+                `UPDATE city_occupation_locks SET lock_status = ?
+                 WHERE id = ? AND lock_status = ?`,
+                model.LockStatusExpired, lockID, model.LockStatusLocked)
+        if err != nil {
+                return fmt.Errorf("force release lock: %w", err)
+        }
+        return nil
 }
 
 // ================================================================
@@ -782,25 +782,25 @@ func (d *MapDAO) ForceReleaseLock(ctx context.Context, lockID int64) error {
 
 // CountCheckpointsByStatus 按状态统计检查点数量
 func (d *MapDAO) CountCheckpointsByStatus(ctx context.Context) (processing, completed, interrupted int, err error) {
-	err = d.db.QueryRowContext(ctx,
-		`SELECT
-		   COALESCE(SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END), 0),
-		   COALESCE(SUM(CASE WHEN status = 2 THEN 1 ELSE 0 END), 0),
-		   COALESCE(SUM(CASE WHEN status = 3 THEN 1 ELSE 0 END), 0)
-		 FROM march_checkpoints`).Scan(&processing, &completed, &interrupted)
-	return
+        err = d.db.QueryRowContext(ctx,
+                `SELECT
+                   COALESCE(SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END), 0),
+                   COALESCE(SUM(CASE WHEN status = 2 THEN 1 ELSE 0 END), 0),
+                   COALESCE(SUM(CASE WHEN status = 3 THEN 1 ELSE 0 END), 0)
+                 FROM march_checkpoints`).Scan(&processing, &completed, &interrupted)
+        return
 }
 
 // CountLocksByStatus 按状态统计锁数量
 func (d *MapDAO) CountLocksByStatus(ctx context.Context) (locked, committed, released, expired int, err error) {
-	err = d.db.QueryRowContext(ctx,
-		`SELECT
-		   COALESCE(SUM(CASE WHEN lock_status = 1 THEN 1 ELSE 0 END), 0),
-		   COALESCE(SUM(CASE WHEN lock_status = 2 THEN 1 ELSE 0 END), 0),
-		   COALESCE(SUM(CASE WHEN lock_status = 3 THEN 1 ELSE 0 END), 0),
-		   COALESCE(SUM(CASE WHEN lock_status = 4 THEN 1 ELSE 0 END), 0)
-		 FROM city_occupation_locks`).Scan(&locked, &committed, &released, &expired)
-	return
+        err = d.db.QueryRowContext(ctx,
+                `SELECT
+                   COALESCE(SUM(CASE WHEN lock_status = 1 THEN 1 ELSE 0 END), 0),
+                   COALESCE(SUM(CASE WHEN lock_status = 2 THEN 1 ELSE 0 END), 0),
+                   COALESCE(SUM(CASE WHEN lock_status = 3 THEN 1 ELSE 0 END), 0),
+                   COALESCE(SUM(CASE WHEN lock_status = 4 THEN 1 ELSE 0 END), 0)
+                 FROM city_occupation_locks`).Scan(&locked, &committed, &released, &expired)
+        return
 }
 
 // ================================================================
@@ -809,35 +809,35 @@ func (d *MapDAO) CountLocksByStatus(ctx context.Context) (locked, committed, rel
 
 // ListStuckMarches 列出卡住的行军（状态=行军中，已到达时间，无活跃检查点）
 func (d *MapDAO) ListStuckMarches(ctx context.Context, stuckMinutes int, limit int) ([]*model.MarchOrder, error) {
-	rows, err := d.db.QueryContext(ctx,
-		`SELECT m.id, m.march_id, m.user_id, m.alliance_id, m.source_city_id, m.target_city_id,
-			m.march_type, m.army_power, m.army_info, m.path, m.total_distance,
-			m.march_speed, m.status, m.start_time, m.arrive_time, m.actual_arrive,
-			m.progress, m.battle_result, m.consume_food, m.created_at
-		 FROM march_orders m
-		 LEFT JOIN march_checkpoints cp ON m.march_id = cp.march_id AND cp.status = ?
-		 WHERE m.status = ?
-		   AND m.arrive_time <= NOW()
-		   AND cp.march_id IS NULL
-		 ORDER BY m.arrive_time ASC LIMIT ?`,
-		model.CheckpointProcessing, model.MarchStatusMarching, limit)
-	if err != nil {
-		return nil, fmt.Errorf("list stuck marches: %w", err)
-	}
-	defer rows.Close()
+        rows, err := d.db.QueryContext(ctx,
+                `SELECT m.id, m.march_id, m.user_id, m.alliance_id, m.source_city_id, m.target_city_id,
+                        m.march_type, m.army_power, m.army_info, m.path, m.total_distance,
+                        m.march_speed, m.status, m.start_time, m.arrive_time, m.actual_arrive,
+                        m.progress, m.battle_result, m.consume_food, m.created_at
+                 FROM march_orders m
+                 LEFT JOIN march_checkpoints cp ON m.march_id = cp.march_id AND cp.status = ?
+                 WHERE m.status = ?
+                   AND m.arrive_time <= NOW()
+                   AND cp.march_id IS NULL
+                 ORDER BY m.arrive_time ASC LIMIT ?`,
+                model.CheckpointProcessing, model.MarchStatusMarching, limit)
+        if err != nil {
+                return nil, fmt.Errorf("list stuck marches: %w", err)
+        }
+        defer rows.Close()
 
-	return d.scanMarchRows(rows)
+        return d.scanMarchRows(rows)
 }
 
 // UpdateMarchStatusCAS CAS方式更新行军状态（仅当当前状态匹配时更新）
 func (d *MapDAO) UpdateMarchStatusCAS(ctx context.Context, marchID string, expectedStatus, newStatus int8) (bool, error) {
-	result, err := d.db.ExecContext(ctx,
-		`UPDATE march_orders SET status = ?
-		 WHERE march_id = ? AND status = ?`,
-		newStatus, marchID, expectedStatus)
-	if err != nil {
-		return false, fmt.Errorf("update march status CAS: %w", err)
-	}
-	affected, _ := result.RowsAffected()
-	return affected > 0, nil
+        result, err := d.db.ExecContext(ctx,
+                `UPDATE march_orders SET status = ?
+                 WHERE march_id = ? AND status = ?`,
+                newStatus, marchID, expectedStatus)
+        if err != nil {
+                return false, fmt.Errorf("update march status CAS: %w", err)
+        }
+        affected, _ := result.RowsAffected()
+        return affected > 0, nil
 }
