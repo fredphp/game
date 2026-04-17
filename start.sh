@@ -114,22 +114,33 @@ build_images() {
     mkdir -p logs/{user-service,battle-service,card-service,map-service,guild-service,payment-service,season-service,admin-service}
 
     log_info "开始构建 (首次约需 10-20 分钟, 后续会使用缓存)..."
-    if ! $COMPOSE_CMD build --no-cache 2>&1; then
+    if ! $COMPOSE_CMD build 2>&1; then
         log_error "镜像构建失败! 以下是详细错误:"
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        cd "$COMMAND_DIR"
-        for svc in user-service battle-service card-service map-service guild-service payment-service season-service admin-service; do
+        # 逐个服务编译, 显示完整错误
+        for svc in user-service battle-service card-service map-service guild-service payment-service season-service; do
             echo ""
-            echo ">>> 尝试编译 $svc ..."
+            echo ">>> 编译 $svc ..."
+            local GO_VER="1.21"
             docker run --rm \
                 -v "$SCRIPT_DIR/$svc:/app" \
                 -w /app \
                 -e GOPROXY=https://goproxy.cn,direct \
                 -e CGO_ENABLED=0 \
                 -e GO111MODULE=on \
-                "golang:$(grep 'go 1.' $SCRIPT_DIR/$svc/go.mod | awk '{print $2}')-alpine" \
-                sh -c "apk add --no-cache git && go mod tidy && go build -o /dev/null ./cmd/main.go" 2>&1 || true
+                "golang:${GO_VER}-alpine" \
+                sh -c "apk add --no-cache git > /dev/null 2>&1; go mod tidy && go build -o /dev/null ./cmd/main.go" 2>&1 || true
         done
+        echo ""
+        echo ">>> 编译 admin-service ..."
+        docker run --rm \
+            -v "$SCRIPT_DIR/admin-service:/app" \
+            -w /app \
+            -e GOPROXY=https://goproxy.cn,direct \
+            -e CGO_ENABLED=0 \
+            -e GO111MODULE=on \
+            "golang:1.22-alpine" \
+            sh -c "apk add --no-cache git > /dev/null 2>&1; go mod tidy && go build -o /dev/null ./cmd/main.go" 2>&1 || true
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         exit 1
     fi
