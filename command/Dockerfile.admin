@@ -1,0 +1,30 @@
+# ============================================================
+# 九州争鼎 - 管理后台服务 Dockerfile (Go 1.22 + GORM)
+# ============================================================
+
+FROM golang:1.22-alpine AS builder
+
+RUN apk --no-cache add git
+
+WORKDIR /app
+
+# 依赖缓存层
+COPY go.mod go.sum ./
+RUN go mod download
+
+# 编译
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -o /admin-service ./cmd/main.go
+
+# ── 运行时镜像 ──
+FROM alpine:3.19
+
+RUN apk --no-cache add ca-certificates tzdata
+ENV TZ=Asia/Shanghai
+
+WORKDIR /app
+COPY --from=builder /admin-service .
+
+EXPOSE 9100
+
+CMD ["./admin-service"]

@@ -1,0 +1,249 @@
+version: '3.8'
+
+# ============================================================
+# 九州争鼎 - 统一 Docker Compose 部署文件
+# 包含: MySQL 8.0 + Redis 7 + 9个 Go 微服务
+# ============================================================
+
+services:
+  # ── 基础设施 ──────────────────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    container_name: jiuzhou-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      TZ: Asia/Shanghai
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init-db:/docker-entrypoint-initdb.d
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --default-authentication-plugin=mysql_native_password
+      --max-connections=500
+      --innodb-buffer-pool-size=256M
+    networks:
+      - jiuzhou
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot123"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: jiuzhou-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --requirepass "" --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - jiuzhou
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── 游戏微服务 ────────────────────────────────────────────
+  user-service:
+    build:
+      context: ../user-service
+      dockerfile: ../command/Dockerfile.game
+    container_name: jiuzhou-user
+    ports:
+      - "9001:9001"
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      - ../user-service/config:/app/config
+      - ./logs/user-service:/app/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - jiuzhou
+    restart: unless-stopped
+
+  battle-service:
+    build:
+      context: ../battle-service
+      dockerfile: ../command/Dockerfile.game
+    container_name: jiuzhou-battle
+    ports:
+      - "9002:9002"
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      - ../battle-service/config:/app/config
+      - ./logs/battle-service:/app/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - jiuzhou
+    restart: unless-stopped
+
+  card-service:
+    build:
+      context: ../card-service
+      dockerfile: ../command/Dockerfile.game
+    container_name: jiuzhou-card
+    ports:
+      - "9003:9003"
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      - ../card-service/config:/app/config
+      - ./logs/card-service:/app/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - jiuzhou
+    restart: unless-stopped
+
+  map-service:
+    build:
+      context: ../map-service
+      dockerfile: ../command/Dockerfile.game
+    container_name: jiuzhou-map
+    ports:
+      - "9004:9004"
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      - ../map-service/config:/app/config
+      - ./logs/map-service:/app/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - jiuzhou
+    restart: unless-stopped
+
+  guild-service:
+    build:
+      context: ../guild-service
+      dockerfile: ../command/Dockerfile.game
+    container_name: jiuzhou-guild
+    ports:
+      - "9005:9005"
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      - ../guild-service/config:/app/config
+      - ./logs/guild-service:/app/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - jiuzhou
+    restart: unless-stopped
+
+  payment-service:
+    build:
+      context: ../payment-service
+      dockerfile: ../command/Dockerfile.game
+    container_name: jiuzhou-payment
+    ports:
+      - "9006:9006"
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      - ../payment-service/config:/app/config
+      - ./logs/payment-service:/app/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - jiuzhou
+    restart: unless-stopped
+
+  quest-service:
+    build:
+      context: ../quest-service
+      dockerfile: ../command/Dockerfile.game
+    container_name: jiuzhou-quest
+    ports:
+      - "9007:9007"
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      - ../quest-service/config:/app/config
+      - ./logs/quest-service:/app/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - jiuzhou
+    restart: unless-stopped
+
+  season-service:
+    build:
+      context: ../season-service
+      dockerfile: ../command/Dockerfile.game
+    container_name: jiuzhou-season
+    ports:
+      - "9008:9008"
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      - ../season-service/config:/app/config
+      - ./logs/season-service:/app/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - jiuzhou
+    restart: unless-stopped
+
+  admin-service:
+    build:
+      context: ../admin-service
+      dockerfile: ../command/Dockerfile.admin
+    container_name: jiuzhou-admin
+    ports:
+      - "9100:9100"
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      - ../admin-service/config:/app/config
+      - ./logs/admin-service:/app/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - jiuzhou
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+  redis_data:
+
+networks:
+  jiuzhou:
+    driver: bridge
