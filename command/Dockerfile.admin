@@ -6,18 +6,16 @@ FROM golang:1.22-alpine AS builder
 
 RUN apk --no-cache add git
 
-# 使用国内代理加速依赖下载
 ENV GOPROXY=https://goproxy.cn,direct
+ENV CGO_ENABLED=0
 
 WORKDIR /app
 
-# 先复制依赖文件并下载
-COPY go.mod ./
-RUN go mod download
-
-# 再复制源码并编译
+# 复制全部源码
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -o /admin-service ./cmd/main.go
+
+# 下载依赖(自动生成 go.sum)并编译
+RUN go mod tidy && go build -o /admin-service ./cmd/main.go
 
 # ── 运行时镜像 ──
 FROM alpine:3.19
@@ -27,6 +25,7 @@ ENV TZ=Asia/Shanghai
 
 WORKDIR /app
 COPY --from=builder /admin-service .
+COPY --from=builder /app/config ./config
 
 EXPOSE 9100
 
