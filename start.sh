@@ -78,17 +78,16 @@ ensure_go_sum() {
         fi
 
         echo -e "  ${YELLOW}⏳${NC} 生成 $SVC/go.sum (Go $GO_VER)..."
-        docker run --rm \
+        if docker run --rm \
             -v "$SCRIPT_DIR/$SVC:/app" \
             -w /app \
             -e GOPROXY=https://goproxy.cn,direct \
+            -e GO111MODULE=on \
             "golang:$GO_VER-alpine" \
-            sh -c "apk add --no-cache git > /dev/null 2>&1 && go mod tidy" 2>&1 || true
-
-        if [[ -f "$SCRIPT_DIR/$SVC/go.sum" ]]; then
+            sh -c "apk add --no-cache git > /dev/null 2>&1 && go mod tidy && go mod download"; then
             echo -e "  ${GREEN}✓${NC} $SVC/go.sum 生成成功"
         else
-            echo -e "  ${RED}✗${NC} $SVC/go.sum 生成失败"
+            echo -e "  ${RED}✗${NC} $SVC/go.sum 生成失败 (查看上方错误信息)"
         fi
     done
 

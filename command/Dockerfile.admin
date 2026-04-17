@@ -8,14 +8,15 @@ RUN apk --no-cache add git
 
 ENV GOPROXY=https://goproxy.cn,direct
 ENV CGO_ENABLED=0
+ENV GO111MODULE=on
 
 WORKDIR /app
 
 # 复制全部源码
 COPY . .
 
-# 下载依赖并编译(不用 go mod tidy, 直接 build 会自动解析)
-RUN go get -d ./... && go build -o /admin-service ./cmd/main.go
+# 使用 -mod=mod 自动处理缺失的 go.sum
+RUN go build -mod=mod -o /admin-service ./cmd/main.go
 
 # ── 运行时镜像 ──
 FROM alpine:3.19
