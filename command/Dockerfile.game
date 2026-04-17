@@ -15,8 +15,8 @@ WORKDIR /app
 # 复制全部源码
 COPY . .
 
-# 下载依赖(自动生成 go.sum)并编译
-RUN go mod tidy && go build -o /service ./cmd/main.go
+# 下载依赖并编译(不用 go mod tidy, 直接 build 会自动解析)
+RUN go get -d ./... && go build -o /service ./cmd/main.go
 
 # ── 运行时镜像 ──
 FROM alpine:3.19
