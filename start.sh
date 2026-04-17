@@ -134,7 +134,7 @@ stop_all() {
 # ── 查看服务状态 ──
 show_status() {
     echo -e "\n${BLUE}━━━ 服务状态 ━━━${NC}\n"
-    check_service "MySQL"         3306
+    check_service "MySQL"         3307
     check_service "Redis"         6380
     check_service "User Service"  9001
     check_service "Battle Service" 9002

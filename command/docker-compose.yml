@@ -14,7 +14,7 @@ services:
       MYSQL_ROOT_PASSWORD: root123
       TZ: Asia/Shanghai
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./init-db:/docker-entrypoint-initdb.d
